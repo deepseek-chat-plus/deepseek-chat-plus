@@ -5,6 +5,11 @@
   "license": "MIT",
   "private": true,
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-chat-plus/deepseek-chat-plus.git"
+  },
+  "homepage": "https://deepseek-chat-plus.github.io/deepseek-chat-plus/",
   "scripts": {
     "dev": "rspack serve -c rspack.config.ts",
     "build": "rm -rf dist && NODE_ENV=production rspack build -c rspack.config.ts",
