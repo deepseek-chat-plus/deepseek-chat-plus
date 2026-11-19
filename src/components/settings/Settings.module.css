@@ -204,15 +204,9 @@
   color: var(--dsw-alias-state-error-primary);
 }
 
-.apiKey {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-bottom: 4px;
-}
-
-.apiKeySaved,
-.apiKeyInput {
+/* 设置项里的胶囊输入框：输入态带边框，已保存态为填充色 */
+.field,
+.fieldSaved {
   display: flex;
   align-items: center;
   box-sizing: border-box;
@@ -221,14 +215,14 @@
   line-height: 24px;
 }
 
-.apiKeySaved {
+.fieldSaved {
   justify-content: space-between;
   padding: 0 10px 0 16px;
   border-radius: 28px;
   background-color: var(--dsw-specific-login-input);
 }
 
-.apiKeyMask {
+.fieldMask {
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
@@ -236,7 +230,7 @@
   user-select: none;
 }
 
-.apiKeyInput {
+.field {
   gap: 12px;
   padding: 0 14px;
   border-radius: 22px;
@@ -286,6 +280,18 @@
     color: var(--dsw-alias-label-caption);
     cursor: default;
   }
+}
+
+/* 模型服务：输入框与选择器统一占满右侧剩余宽度，避免长地址挤压标签 */
+.providerCell .text {
+  flex: 1 1 auto;
+  padding-right: 16px;
+}
+
+.providerField,
+.providerSelect {
+  width: 260px;
+  max-width: 100%;
 }
 
 @media not all and (min-width: 768px) {
@@ -361,12 +367,8 @@
     flex: 1 1 auto;
   }
 
-  .apiKey {
-    padding-bottom: 0;
-  }
-
-  .apiKeySaved,
-  .apiKeyInput {
+  .fieldSaved,
+  .field {
     height: 52px;
     padding: 0 12px 0 16px;
     border: none;
@@ -375,9 +377,24 @@
     font-size: 16px;
   }
 
-  .apiKeySaved svg {
+  .fieldSaved svg {
     width: 20px;
     height: 20px;
+  }
+
+  .providerCell .text {
+    flex-basis: 100%;
+    padding-right: 0;
+  }
+
+  .providerField,
+  .providerSelect {
+    width: 100%;
+  }
+
+  .providerCell {
+    flex-wrap: wrap;
+    gap: 12px;
   }
 
   .cellButton svg {

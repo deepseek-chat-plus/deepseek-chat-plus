@@ -69,7 +69,7 @@ export const App = () => {
 
   useEffect(() => {
     void initChat()
-    // 首次打开先在设置里输入 API Key
+    // 首次打开先在设置里配置模型服务
     ensureApiKey()
   }, [])
 

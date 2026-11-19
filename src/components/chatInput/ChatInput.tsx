@@ -7,7 +7,8 @@ import {
   IconStopFill16,
   IconThinkOutline14,
 } from '../base/icons.js'
-import { setSearch, setThinking, useSettings } from '../../services/settings.js'
+import { updateSettings, useSettings } from '../../services/settings.js'
+import { hasDeepseekExtensions } from '../../services/api/provider.js'
 import { useIsMobile } from '../../app/viewport.js'
 import { sendMessage, stopReply, useChatStore } from '../../services/chat/store.js'
 import {
@@ -53,6 +54,8 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   const importingHistory = useChatStore((state) => state.importingHistory)
   const isMobile = useIsMobile()
   const search = useSettings((state) => state.search)
+  // 附件与语音走 DeepSeek 兼容接口，其他模型服务下不提供入口
+  const extended = hasDeepseekExtensions(useSettings((state) => state.provider.protocol))
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const togglesRef = useRef<HTMLDivElement>(null)
@@ -72,13 +75,17 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
     const observer = new ResizeObserver(updateLabels)
     observer.observe(toggles)
     return () => observer.disconnect()
-  }, [t])
+  }, [t, extended])
 
   const acceptFiles = (files: File[]) => {
     if (files.length === 0 || useChatStore.getState().importingHistory || !ensureApiKey()) {
       return
     }
-    const error = addDraftFiles(sessionId, files, useSettings.getState().apiKey ?? '')
+    if (!extended) {
+      showToast({ key: 'providerUploadUnsupported' })
+      return
+    }
+    const error = addDraftFiles(sessionId, files, useSettings.getState().provider.apiKey)
     if (error) {
       showToast(error)
     }
@@ -86,7 +93,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   const retryFile = useCallback(
     (id: string) => {
       if (!useChatStore.getState().importingHistory && ensureApiKey()) {
-        retryDraftAttachment(sessionId, id, useSettings.getState().apiKey ?? '')
+        retryDraftAttachment(sessionId, id, useSettings.getState().provider.apiKey)
       }
     },
     [sessionId]
@@ -200,54 +207,66 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
         </div>
       </div>
       <div className={styles.functionRow}>
-        {/* 深度思考 / 智能搜索开关，tooltip 在按钮上方 */}
-        <div ref={togglesRef} className={styles.toggles}>
-          <Tooltip content={t('deactivatedThinkTooltip')}>
-            <button
-              type="button"
-              className={clsx(styles.toggle, thinking && styles.selected)}
-              aria-label={t('thinkingSwitch')}
-              aria-pressed={thinking}
-              onClick={() => setThinking(!thinking)}
-            >
-              <IconThinkOutline14 />
-              <span className={styles.toggleLabel}>{t('thinkingSwitch')}</span>
-            </button>
-          </Tooltip>
-          <Tooltip content={t('deactivatedSearchTooltip')}>
-            <button
-              type="button"
-              className={clsx(styles.toggle, search && styles.selected)}
-              aria-label={t('search')}
-              aria-pressed={search}
-              onClick={() => setSearch(!search)}
-            >
-              <IconGlobeLanguageOutline14 />
-              <span className={styles.toggleLabel}>{t('search')}</span>
-            </button>
-          </Tooltip>
-        </div>
+        {/* 深度思考 / 智能搜索只适用于 DeepSeek 兼容接口，tooltip 在按钮上方 */}
+        {extended ? (
+          <div ref={togglesRef} className={styles.toggles}>
+            <Tooltip content={t('deactivatedThinkTooltip')}>
+              <button
+                type="button"
+                className={clsx(styles.toggle, thinking && styles.selected)}
+                aria-label={t('thinkingSwitch')}
+                aria-pressed={thinking}
+                onClick={() => updateSettings({ thinking: !thinking })}
+              >
+                <IconThinkOutline14 />
+                <span className={styles.toggleLabel}>{t('thinkingSwitch')}</span>
+              </button>
+            </Tooltip>
+            <Tooltip content={t('deactivatedSearchTooltip')}>
+              <button
+                type="button"
+                className={clsx(styles.toggle, search && styles.selected)}
+                aria-label={t('search')}
+                aria-pressed={search}
+                onClick={() => updateSettings({ search: !search })}
+              >
+                <IconGlobeLanguageOutline14 />
+                <span className={styles.toggleLabel}>{t('search')}</span>
+              </button>
+            </Tooltip>
+          </div>
+        ) : null}
         <div className={styles.right}>
-          <VoiceButton
-            status={voice.status}
-            disabled={!voice.available}
-            seconds={voice.seconds}
-            onClick={() => {
-              if (
-                voice.status !== 'idle' ||
-                (!useChatStore.getState().importingHistory && ensureApiKey())
-              ) {
-                void voice.toggle()
-              }
-            }}
-          />
+          {extended ? (
+            <VoiceButton
+              status={voice.status}
+              disabled={!voice.available}
+              seconds={voice.seconds}
+              onClick={() => {
+                if (
+                  voice.status !== 'idle' ||
+                  (!useChatStore.getState().importingHistory && ensureApiKey())
+                ) {
+                  void voice.toggle()
+                }
+              }}
+            />
+          ) : null}
           <IconButton
             size="m"
             tone="primary"
             icon={<IconPaperclipOutline16 />}
             tooltip={t('uploadFile')}
             disabled={importingHistory}
-            onClick={() => ensureApiKey() && fileInputRef.current?.click()}
+            onClick={() => {
+              if (ensureApiKey()) {
+                if (extended) {
+                  fileInputRef.current?.click()
+                } else {
+                  showToast({ key: 'providerUploadUnsupported' })
+                }
+              }
+            }}
           />
           <input
             ref={fileInputRef}
@@ -285,7 +304,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
           )}
         </div>
       </div>
-      {dragging ? <DragMask /> : null}
+      {dragging && extended ? <DragMask /> : null}
     </div>
   )
 }

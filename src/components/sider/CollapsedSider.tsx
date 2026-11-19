@@ -1,6 +1,6 @@
 import { IconPanelLeftOutline16, NewChatIcon } from '../base/icons.js'
 import { useTranslate } from '../../i18n/index.js'
-import { setSiderCollapsed } from '../../services/settings.js'
+import { updateSettings } from '../../services/settings.js'
 import { newChat } from '../../services/chat/store.js'
 import { IconButton } from '../base/IconButton.js'
 import styles from './Sider.module.css'
@@ -16,7 +16,7 @@ export const CollapsedSider = () => {
           tone="primary"
           icon={<IconPanelLeftOutline16 />}
           tooltip={t('expandSiderbarButton')}
-          onClick={() => setSiderCollapsed(false)}
+          onClick={() => updateSettings({ siderCollapsed: false })}
         />
         <IconButton
           size="m"

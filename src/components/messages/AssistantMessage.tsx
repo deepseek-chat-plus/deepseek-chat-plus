@@ -5,6 +5,8 @@ import { IconRefreshOutline16, IconWarningOutline16 } from '../base/icons.js'
 import { describeReply } from '../../services/chat/describe.js'
 import { canContinueReply } from '../../services/chat/reply.js'
 import { continueReply, regenerateReply } from '../../services/chat/store.js'
+import { hasDeepseekExtensions } from '../../services/api/provider.js'
+import { useSettings } from '../../services/settings.js'
 import { stopReadAloud } from '../../services/speech/readAloud.js'
 import type { AssistantMessage as AssistantMessageType } from '../../services/chat/types.js'
 import { openSettings } from '../settings/settingsDialogState.js'
@@ -45,6 +47,8 @@ export const AssistantMessage = memo(function AssistantMessage({
 }) {
   const t = useTranslate()
   const view = useReplyView(message, streaming)
+  // 充值与朗读只对 DeepSeek 服务有效，其他模型服务下不提供入口
+  const extended = hasDeepseekExtensions(useSettings((state) => state.provider.protocol))
   const panelEntry = useSearchPanel((state) => state.entry)
   const notice = streaming ? null : describeReply(message)
   // 安全拒绝：已下发的思考与正文按协议丢弃，只显示模板答复。
@@ -102,13 +106,13 @@ export const AssistantMessage = memo(function AssistantMessage({
                 <button
                   type="button"
                   className={styles.noticeAction}
-                  onClick={() => openSettings('data')}
+                  onClick={() => openSettings('provider')}
                 >
                   {t('changeApiKey')}
                 </button>
               </>
             ) : null}
-            {notice.action === 'topUp' ? (
+            {notice.action === 'topUp' && extended ? (
               <>
                 {' '}
                 <a
@@ -143,7 +147,7 @@ export const AssistantMessage = memo(function AssistantMessage({
           <BranchSwitcher versions={versions} disabled={busy} onSelect={onSelectVersion} />
           <div className={clsx(styles.actions, isLast && styles.alwaysShow)}>
             {copyText ? <CopyButton text={copyText} /> : null}
-            {responseText && !refused ? (
+            {responseText && !refused && extended ? (
               <ReadAloudButton messageId={message.id} text={responseText} />
             ) : null}
             <IconButton

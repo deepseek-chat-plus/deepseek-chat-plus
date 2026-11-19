@@ -21,12 +21,14 @@ declare const styles: {
   readonly "themeOptionSelected": string;
   readonly "description": string;
   readonly "error": string;
-  readonly "apiKey": string;
-  readonly "apiKeySaved": string;
-  readonly "apiKeyInput": string;
-  readonly "apiKeyMask": string;
+  readonly "field": string;
+  readonly "fieldSaved": string;
+  readonly "fieldMask": string;
   readonly "divider": string;
   readonly "confirm": string;
+  readonly "providerCell": string;
+  readonly "providerField": string;
+  readonly "providerSelect": string;
   readonly "cellButton": string;
   readonly "mobileConfirm": string;
   readonly "importConfirm": string;

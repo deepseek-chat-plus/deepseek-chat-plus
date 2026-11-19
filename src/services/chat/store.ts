@@ -1,8 +1,9 @@
 import { create } from 'zustand'
 import { createId } from '../../utils/id.js'
-import { ApiError, streamMessage } from '../api/client.js'
-import type { ChatModel, CreateMessageRequest } from '../api/types.js'
+import { streamMessage } from '../api/client.js'
 import { extractFileIds, getFileErrorCode, isRetryableApiError } from '../api/errors.js'
+import { ApiError } from '../api/http.js'
+import { hasDeepseekExtensions, normalizeProvider } from '../api/provider.js'
 import { cancelUpload, describeUploadError, uploadAttachment, useUploads } from '../attachments.js'
 import { useSettings } from '../settings.js'
 import { appendBranch, getVisibleMessages, normalizeSession, selectVersion } from './branches.js'
@@ -32,32 +33,39 @@ import {
   type UserMessage,
 } from './types.js'
 
-/** deepseek-flash 同时支持深度思考与图片输入 */
-const MODEL: ChatModel = 'deepseek-flash'
-/** 所有生成请求统一携带的助手身份说明 */
+/** 所有生成请求统一携带的助手身份说明，只适用于 DeepSeek 兼容接口 */
 const SYSTEM_PROMPT = '该助手为DeepSeek，由深度求索公司创造。'
 /** 保留最近打开的详情；当前会话、生成中及尚未成功保存的会话不淘汰。 */
 const SESSION_CACHE_LIMIT = 5
-/** 安全审核固定开启，所有请求都走扩展模式 */
-const SAFETY_CHECK = { level: 'high' } as const
 /** 服务端判定 file_id 失效后，重新补传并重发的最多次数（不含首次请求） */
 const FILE_RETRY_LIMIT = 2
 /** 退避基数，第 n 次重试等待 2^n 倍；连续失败达到上限就放弃，把原始报错展示出来 */
 const FILE_RETRY_BASE_DELAY = 1000
 
-/** 阅读链接始终开启，智能搜索开关控制是否另行声明搜索工具（含边想边搜）。 */
-const serverTools = (search: boolean): CreateMessageRequest['tools'] => {
-  const tools: CreateMessageRequest['tools'] = [
-    { type: 'deepseek_read_url', name: 'deepseek_read_url' },
-  ]
-  if (search) {
-    tools.push({ type: 'deepseek_web_search', name: 'deepseek_web_search' })
-  }
-  return tools
+/** 当前模型服务的请求配置；设置里可能还留着编辑中的空值，发起请求前统一归一化 */
+const currentProvider = () => normalizeProvider(useSettings.getState().provider)
+
+/** 新回复的默认请求配置：深度思考与智能搜索按当前开关，第三方模型不启用 */
+const defaultOptions = () => {
+  const provider = currentProvider()
+  const { thinking, search } = useSettings.getState()
+  const extended = hasDeepseekExtensions(provider.protocol)
+  return { model: provider.model, thinking: extended && thinking, search: extended && search }
 }
 
 /** 允许自动补标题的请求；手动重命名后取消本轮标题写入，包含主动清空标题的情况。 */
 const titleRequests = new Set<AbortController>()
+
+/** 兜底标题的长度上限，与列表的展示宽度大致匹配 */
+const FALLBACK_TITLE_LENGTH = 30
+
+/** 第三方协议不返回标题：用提问首行兜底，已有标题（含手动重命名）保持不变 */
+const updateTitleFromQuestion = (sessionId: string, question: UserMessage) => {
+  const title = question.content.trim().split('\n')[0].trim().slice(0, FALLBACK_TITLE_LENGTH)
+  if (title) {
+    updateSession(sessionId, (session) => (session.title ? session : { ...session, title }))
+  }
+}
 
 type ChatState = {
   ready: boolean
@@ -253,21 +261,16 @@ export const bindChatPersistence = () => {
   }
 }
 
-/** 按当前开关创建回复：深度思考对应 thinking，智能搜索控制 deepseek_web_search。 */
-const createReply = (): AssistantMessage => {
-  const { thinking, search } = useSettings.getState()
-  return {
-    id: createId(),
-    role: 'assistant',
-    createdAt: Date.now(),
-    model: MODEL,
-    thinking,
-    search,
-    prefix: true,
-    status: 'pending',
-    blocks: [],
-  }
-}
+/** 按当前模型服务与开关创建回复：记录本次请求配置，供续写与导出使用。 */
+const createReply = (): AssistantMessage => ({
+  id: createId(),
+  role: 'assistant',
+  createdAt: Date.now(),
+  ...defaultOptions(),
+  prefix: true,
+  status: 'pending',
+  blocks: [],
+})
 
 /** 仍在生成中的回复（页面关闭或导出时未结束）按「已停止」处理 */
 const settleInterrupted = (session: Session): Session => {
@@ -705,13 +708,13 @@ export const continueReply = (sessionId: string, messageId: string) => {
   ) {
     return
   }
-  const { thinking, search } = useSettings.getState()
+  const fallback = defaultOptions()
   const reply: AssistantMessage = {
     ...previous,
-    // 未记录请求配置的回复，续写时使用默认模型和当前开关。
-    model: previous.model ?? MODEL,
-    thinking: previous.thinking ?? thinking,
-    search: previous.search ?? search,
+    // 未记录请求配置的回复，续写时使用当前模型服务的默认值。
+    model: previous.model ?? fallback.model,
+    thinking: previous.thinking ?? fallback.thinking,
+    search: previous.search ?? fallback.search,
     status: 'pending',
     stopReason: undefined,
     stopDetails: undefined,
@@ -818,7 +821,7 @@ const prepareFiles = async (sessionId: string, request: Request, signal: AbortSi
   // 服务端判定 file_id 失效时会清掉会话里的 serverId，先用最新消息替换请求快照，
   // 否则快照里仍是旧 id，补传会直接复用它。
   request = refreshRequest(sessionId, request)
-  const apiKey = useSettings.getState().apiKey ?? ''
+  const { apiKey } = currentProvider()
   const serverIds = new Map<string, string>()
   // 停止生成立即生效；上传本身不取消（输入框与其他消息可能共用同一任务），完成后照常写回 serverId
   const aborted = new Promise<never>((_, reject) => {
@@ -982,10 +985,18 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
       try {
         const prepared = await prepareFiles(sessionId, request, controller.signal)
         preparing = false
+        const provider = currentProvider()
+        const extended = hasDeepseekExtensions(provider.protocol)
+        // 第三方协议不会返回标题，用提问首行兜底，避免列表一直显示「新对话」。
+        if (!extended && titleRequests.delete(controller)) {
+          updateTitleFromQuestion(sessionId, prepared.question)
+        }
         // 附件就绪后获取本轮信息；续写沿用原回答快照，重新生成的快照独立保存。
-        const latestReminder = prepared.prefix
-          ? prepared.prefix.latestReminder
-          : createLatestReminder(useSettings.getState())
+        const latestReminder = !extended
+          ? undefined
+          : prepared.prefix
+            ? prepared.prefix.latestReminder
+            : createLatestReminder(useSettings.getState())
         reply = { ...reply, latestReminder }
         updateReply(sessionId, reply)
         persist(sessionId)
@@ -997,15 +1008,14 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
           latestReminder
         )
         const events = streamMessage(
-          useSettings.getState().apiKey ?? '',
+          provider,
           {
-            model: initial.model ?? MODEL,
-            system: SYSTEM_PROMPT,
+            model: initial.model ?? provider.model,
+            system: extended ? SYSTEM_PROMPT : undefined,
             messages,
-            thinking: { type: initial.thinking ? 'enabled' : 'disabled' },
-            safety_check: SAFETY_CHECK,
-            tools: serverTools(initial.search ?? false),
-            ...(titleRequests.has(controller) ? { title: { enabled: true } } : {}),
+            thinking: initial.thinking ?? false,
+            search: initial.search ?? false,
+            title: titleRequests.has(controller),
           },
           controller.signal
         )
