@@ -1,105 +1,93 @@
-import { translate, type TranslationMessage } from '../../i18n/index.js'
+/**
+ * 生成接口的请求层：按模型服务配置选择协议，把请求报文发给服务端，
+ * 并把两种协议的响应统一成内部的 Messages 事件流。
+ */
+import { isErrorBody, readErrorResponse, request, ApiError } from './http.js'
+import { readOpenAIStream, toOpenAIBody, toOpenAIProbe } from './openai.js'
 import { readMessageEvent } from './parseEvent.js'
-import { readServerSentEvents } from './sse.js'
-import type {
-  ApiErrorBody,
-  CreateMessageRequest,
-  FileObject,
-  FilePurpose,
-  MessageStreamEvent,
-} from './types.js'
+import {
+  authHeaders,
+  defaultBaseUrl,
+  endpoint,
+  hasDeepseekExtensions,
+  messageEndpoint,
+  type ChatRequest,
+  type ProviderConfig,
+} from './provider.js'
+import { readServerSentEvents, type ServerSentEvent } from './sse.js'
+import type { CreateMessageRequest, FileObject, FilePurpose, MessageStreamEvent } from './types.js'
 
-/** 构建期 API 地址，默认 https://api.deepseek.com；本地开发支持开发服务器代理 */
-export const API_ORIGIN = __API_ORIGIN__
-/** Anthropic 兼容接口的前缀 */
-const ANTHROPIC_BASE_URL = `${API_ORIGIN}/anthropic/v1`
-/** 引用 Files API 上传的图片、调用 Anthropic 兼容 Files API 时必须携带 */
+/** 引用 Files API 上传的附件时必须携带 */
 const FILES_BETA = 'files-api-2025-04-14'
 
-export type ApiErrorKind =
-  /** 非 2xx 响应 */
-  | 'http'
-  /** 流中返回的错误帧（如等待生成超时），随后连接关闭 */
-  | 'stream'
-  /** 请求没有到达服务端（断网、跨域被拦截等） */
-  | 'network'
-  /** 流在 message_stop 之前结束 */
-  | 'interrupted'
-  /** 响应不符合协议（如非 SSE 响应） */
-  | 'protocol'
+/** 安全审核固定开启，DeepSeek 兼容协议的请求都走扩展模式 */
+const SAFETY_CHECK = { level: 'high' } as const
 
-export class ApiError extends Error {
-  readonly localMessage?: TranslationMessage
-
-  constructor(
-    readonly kind: ApiErrorKind,
-    message: string | TranslationMessage,
-    readonly status?: number
-  ) {
-    super(typeof message === 'string' ? message : translate(message.key, message.params))
-    this.name = 'ApiError'
-    this.localMessage = typeof message === 'string' ? undefined : message
+/** 阅读链接始终开启，智能搜索开关控制是否另行声明搜索工具（含边想边搜） */
+const serverTools = (search: boolean): CreateMessageRequest['tools'] => {
+  const tools: CreateMessageRequest['tools'] = [
+    { type: 'deepseek_read_url', name: 'deepseek_read_url' },
+  ]
+  if (search) {
+    tools.push({ type: 'deepseek_web_search', name: 'deepseek_web_search' })
   }
+  return tools
 }
 
-const isErrorBody = (value: unknown): value is ApiErrorBody =>
-  typeof value === 'object' &&
-  value !== null &&
-  'error' in value &&
-  typeof (value as ApiErrorBody).error?.message === 'string'
-
-const readErrorResponse = async (
-  response: Response,
-  kind: 'http' | 'protocol' = 'http',
-  fallback = response.statusText
-): Promise<ApiError> => {
-  const text = await response.text().catch(() => '')
-  let message = text || fallback
-  try {
-    const body: unknown = JSON.parse(text)
-    if (isErrorBody(body)) {
-      message = body.error.message
-    }
-  } catch {
-    // 非 JSON 响应体直接展示原文
-  }
-  return new ApiError(kind, message, response.status)
-}
-
-export const request = async (url: string, init: RequestInit): Promise<Response> => {
-  let response: Response
-  try {
-    response = await fetch(url, init)
-  } catch (error) {
-    if (init.signal?.aborted) {
-      throw error
-    }
-    throw new ApiError('network', error instanceof Error ? error.message : String(error))
-  }
-  if (!response.ok) {
-    throw await readErrorResponse(response)
-  }
-  return response
-}
-
-const anthropicHeaders = (apiKey: string, beta: boolean): Record<string, string> => ({
-  // DeepSeek 兼容接口的鉴权方式，也可使用 Authorization: Bearer。
-  'x-api-key': apiKey,
-  // Files API 和通过 file_id 引用图片时必传；纯文本聊天无需携带。
-  ...(beta ? { 'anthropic-beta': FILES_BETA } : {}),
+/** DeepSeek 兼容协议：扩展能力全开，报文带思考、搜索、标题与安全审核 */
+const toMessageRequest = (chat: ChatRequest): CreateMessageRequest => ({
+  model: chat.model,
+  system: chat.system ?? '',
+  messages: chat.messages,
+  thinking: { type: chat.thinking ? 'enabled' : 'disabled' },
+  tools: serverTools(chat.search),
+  safety_check: SAFETY_CHECK,
+  ...(chat.title ? { title: { enabled: true } } : {}),
 })
 
-/** 用 GET /models 校验 API Key（不产生费用） */
-export const verifyApiKey = async (apiKey: string, signal?: AbortSignal): Promise<void> => {
-  await request(`${API_ORIGIN}/models`, {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${apiKey}` },
+const hasFile = (body: CreateMessageRequest) =>
+  body.messages.some(
+    (message) =>
+      typeof message.content !== 'string' &&
+      message.content.some((block) => block.type === 'image' || block.type === 'document')
+  )
+
+/** 鉴权头；json 为 false 时按 SSE 事件流接收 */
+const providerHeaders = (provider: ProviderConfig, json: boolean): Record<string, string> => ({
+  ...authHeaders(provider.protocol, provider.apiKey),
+  Accept: json ? 'application/json' : 'text/event-stream',
+  ...(json ? { 'Content-Type': 'application/json' } : {}),
+})
+
+/** 发一次非流式请求并解析 JSON，用于连通性测试 */
+export const verifyProvider = async (
+  provider: ProviderConfig,
+  signal?: AbortSignal
+): Promise<void> => {
+  const body = hasDeepseekExtensions(provider.protocol)
+    ? {
+        model: provider.model,
+        max_tokens: 1,
+        messages: [{ role: 'user', content: 'ping' }],
+      }
+    : toOpenAIProbe(provider.protocol, provider.model)
+  const response = await request(messageEndpoint(provider), {
+    method: 'POST',
+    headers: providerHeaders(provider, true),
+    body: JSON.stringify(body),
     signal,
   })
+  const text = await response.text()
+  try {
+    JSON.parse(text)
+  } catch {
+    throw new ApiError('protocol', text)
+  }
 }
 
 /**
  * POST /anthropic/v1/files 上传附件（不设过期时间，会话里的历史附件一直可用）。
+ * 附件始终走 DeepSeek 的 Files API，与当前聊天协议无关，因此只取 API Key。
  * purpose 为 null 时不传该字段（图片）；purpose 必须排在 file 之前。
  */
 export const uploadFile = async (
@@ -113,46 +101,25 @@ export const uploadFile = async (
     form.append('purpose', purpose)
   }
   form.append('file', file)
-  const response = await request(`${ANTHROPIC_BASE_URL}/files`, {
+  const response = await request(endpoint(defaultBaseUrl('anthropic'), '/files'), {
     method: 'POST',
-    headers: anthropicHeaders(apiKey, true),
+    headers: { ...authHeaders('anthropic', apiKey), 'anthropic-beta': FILES_BETA },
     body: form,
     signal,
   })
   return (await response.json()) as FileObject
 }
 
-/** DELETE /anthropic/v1/files/{file_id} */
-export const deleteFile = async (apiKey: string, fileId: string): Promise<void> => {
-  await request(`${ANTHROPIC_BASE_URL}/files/${encodeURIComponent(fileId)}`, {
-    method: 'DELETE',
-    headers: anthropicHeaders(apiKey, true),
-  })
-}
-
-const hasFile = (body: CreateMessageRequest) =>
-  body.messages.some(
-    (message) =>
-      typeof message.content !== 'string' &&
-      message.content.some((block) => block.type === 'image' || block.type === 'document')
-  )
-
-/**
- * POST /anthropic/v1/messages（stream: true），逐个产出流式事件，收到 message_stop 时结束。
- * ping、保活注释与无法解析的内容不产出；中止请求时抛出 signal 的 AbortError。
- */
-export async function* streamMessage(
-  apiKey: string,
-  body: CreateMessageRequest,
-  signal: AbortSignal
-): AsyncGenerator<MessageStreamEvent> {
-  const response = await request(`${ANTHROPIC_BASE_URL}/messages`, {
+/** 发出流式请求并打开 SSE 事件流；非事件流响应按协议错误处理 */
+const openStream = async (
+  provider: ProviderConfig,
+  body: object,
+  signal: AbortSignal,
+  headers: Record<string, string> = {}
+) => {
+  const response = await request(messageEndpoint(provider), {
     method: 'POST',
-    headers: {
-      ...anthropicHeaders(apiKey, hasFile(body)),
-      'Content-Type': 'application/json',
-      Accept: 'text/event-stream',
-    },
+    headers: { ...providerHeaders(provider, false), ...headers },
     body: JSON.stringify({ ...body, stream: true }),
     signal,
   })
@@ -160,20 +127,28 @@ export async function* streamMessage(
   if (!response.body || !contentType.includes('text/event-stream')) {
     throw await readErrorResponse(response, 'protocol', '')
   }
-  for await (const { event: eventName, data } of readServerSentEvents(response.body, signal)) {
+  return readServerSentEvents(response.body, signal)
+}
+
+/**
+ * 逐个产出 Messages 事件，收到 message_stop 时结束。
+ * 保活注释与无法解析的帧直接跳过；中止请求时抛出 signal 的 AbortError。
+ */
+async function* readMessageStream(
+  events: AsyncGenerator<ServerSentEvent>
+): AsyncGenerator<MessageStreamEvent> {
+  for await (const { event: eventName, data } of events) {
     let payload: unknown
     try {
       payload = JSON.parse(data)
     } catch {
-      if (eventName !== 'error') {
-        continue
+      if (eventName === 'error') {
+        throw new ApiError('stream', data)
       }
+      continue
     }
     if (isErrorBody(payload)) {
       throw new ApiError('stream', payload.error.message)
-    }
-    if (eventName === 'error') {
-      throw new ApiError('stream', data)
     }
     const event = readMessageEvent(payload)
     if (!event) {
@@ -186,4 +161,23 @@ export async function* streamMessage(
   }
   // 服务端没有提供错误内容时保持为空，不推测断流原因。
   throw new ApiError('interrupted', '')
+}
+
+/** 生成回复：DeepSeek 兼容协议走扩展报文，其余协议翻译成 OpenAI 兼容格式 */
+export async function* streamMessage(
+  provider: ProviderConfig,
+  chat: ChatRequest,
+  signal: AbortSignal
+): AsyncGenerator<MessageStreamEvent> {
+  if (hasDeepseekExtensions(provider.protocol)) {
+    const body = toMessageRequest(chat)
+    const beta: Record<string, string> = hasFile(body) ? { 'anthropic-beta': FILES_BETA } : {}
+    yield* readMessageStream(await openStream(provider, body, signal, beta))
+    return
+  }
+  yield* readOpenAIStream(
+    provider.protocol,
+    await openStream(provider, toOpenAIBody(provider.protocol, chat), signal),
+    chat.model
+  )
 }

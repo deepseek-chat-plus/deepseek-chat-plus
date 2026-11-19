@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { normalizeProvider, type ProviderConfig } from './api/provider.js'
 import type { TtsVoice } from './api/speech.js'
 import { normalizeLocation, type UserLocation } from './location.js'
 
@@ -7,9 +8,9 @@ export type Locale = 'zh-CN' | 'en-US'
 /** 主题偏好；默认跟随系统 */
 export type ThemePreference = 'light' | 'dark' | 'system'
 
-/** 本机设置，存 localStorage：API Key、语言、主题、位置、朗读音色、深度思考与智能搜索开关、侧边栏收起状态 */
+/** 本机设置，存 localStorage：模型服务、语言、主题、位置、朗读音色、深度思考与智能搜索开关、侧边栏收起状态 */
 type Settings = {
-  apiKey: string | null
+  provider: ProviderConfig
   locale: Locale
   themePreference: ThemePreference
   location: UserLocation | null
@@ -19,8 +20,8 @@ type Settings = {
   siderCollapsed: boolean
 }
 
-const KEYS = {
-  apiKey: 'chat-demo:api-key',
+const KEYS: Record<keyof Settings, string> = {
+  provider: 'chat-demo:provider',
   locale: 'chat-demo:locale',
   location: 'chat-demo:location',
   themePreference: 'chat-demo:theme-preference',
@@ -28,7 +29,7 @@ const KEYS = {
   thinking: 'chat-demo:thinking',
   search: 'chat-demo:search',
   siderCollapsed: 'chat-demo:sider-collapsed',
-} as const
+}
 
 const read = (key: string) => {
   try {
@@ -38,12 +39,13 @@ const read = (key: string) => {
   }
 }
 
-const write = (key: string, value: string | null) => {
+/** 字符串原样存储，其余按 JSON 存储（布尔值即 'true' / 'false'）；null 表示删除 */
+const write = (key: string, value: unknown) => {
   try {
     if (value === null) {
       localStorage.removeItem(key)
     } else {
-      localStorage.setItem(key, value)
+      localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value))
     }
   } catch {
     // 存储不可用时只在内存中生效
@@ -87,8 +89,16 @@ const initialThemePreference = (): ThemePreference => {
 /** 未保存过时使用服务端默认音色 stella（海星） */
 const initialTtsVoice = (): TtsVoice => (read(KEYS.ttsVoice) === 'tide' ? 'tide' : 'stella')
 
+const initialProvider = (): ProviderConfig => {
+  try {
+    return normalizeProvider(JSON.parse(read(KEYS.provider) ?? 'null'))
+  } catch {
+    return normalizeProvider(null)
+  }
+}
+
 export const useSettings = create<Settings>(() => ({
-  apiKey: read(KEYS.apiKey),
+  provider: initialProvider(),
   locale: initialLocale(),
   location: initialLocation(),
   themePreference: initialThemePreference(),
@@ -98,43 +108,14 @@ export const useSettings = create<Settings>(() => ({
   siderCollapsed: read(KEYS.siderCollapsed) === 'true',
 }))
 
-export const setLocale = (locale: Locale) => {
-  write(KEYS.locale, locale)
-  useSettings.setState({ locale })
+/** 修改设置：内存与 localStorage 同步更新，未提供的项保持不变 */
+export const updateSettings = (patch: Partial<Settings>) => {
+  useSettings.setState(patch)
+  for (const name of Object.keys(patch) as (keyof Settings)[]) {
+    write(KEYS[name], patch[name])
+  }
 }
 
-export const setLocation = (value: UserLocation | null) => {
-  const location = normalizeLocation(value)
-  write(KEYS.location, location ? JSON.stringify(location) : null)
-  useSettings.setState({ location })
-}
-
-export const setThemePreference = (themePreference: ThemePreference) => {
-  write(KEYS.themePreference, themePreference)
-  useSettings.setState({ themePreference })
-}
-
-export const setTtsVoice = (ttsVoice: TtsVoice) => {
-  write(KEYS.ttsVoice, ttsVoice)
-  useSettings.setState({ ttsVoice })
-}
-
-export const setApiKey = (apiKey: string | null) => {
-  write(KEYS.apiKey, apiKey)
-  useSettings.setState({ apiKey })
-}
-
-export const setThinking = (thinking: boolean) => {
-  write(KEYS.thinking, String(thinking))
-  useSettings.setState({ thinking })
-}
-
-export const setSearch = (search: boolean) => {
-  write(KEYS.search, String(search))
-  useSettings.setState({ search })
-}
-
-export const setSiderCollapsed = (siderCollapsed: boolean) => {
-  write(KEYS.siderCollapsed, String(siderCollapsed))
-  useSettings.setState({ siderCollapsed })
-}
+/** 位置需要先归一化再保存 */
+export const setLocation = (value: UserLocation | null) =>
+  updateSettings({ location: normalizeLocation(value) })
