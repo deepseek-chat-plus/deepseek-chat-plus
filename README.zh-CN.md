@@ -11,7 +11,7 @@
 准备 Node.js 22.12+ 和 pnpm：
 
 ```sh
-git clone <仓库地址>
+git clone https://github.com/deepseek-chat-plus/deepseek-chat-plus.git
 cd deepseek-chat-plus
 pnpm install
 pnpm dev

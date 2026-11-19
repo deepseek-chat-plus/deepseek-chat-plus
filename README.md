@@ -11,7 +11,7 @@ The app keeps the original chat experience and adds a model service panel: point
 Install Node.js 22.12+ and pnpm, then run:
 
 ```sh
-git clone <repository-url>
+git clone https://github.com/deepseek-chat-plus/deepseek-chat-plus.git
 cd deepseek-chat-plus
 pnpm install
 pnpm dev
