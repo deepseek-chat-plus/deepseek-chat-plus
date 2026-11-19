@@ -6,6 +6,8 @@
 
 应用保留原有的聊天体验，并新增模型服务设置：既可以使用 DeepSeek 兼容的 Messages 接口，也可以把服务地址指向任意 OpenAI Chat Completions / OpenAI Responses 兼容服务，再用一次连通性测试确认配置是否可用。
 
+本分支是 [deepseek-ai/chat-demo](https://github.com/deepseek-ai/chat-demo) 的增强分支，会持续跟进原仓库的修复与功能，原有能力保持一致。
+
 ## 运行
 
 准备 Node.js 22.12+ 和 pnpm：
@@ -27,6 +29,12 @@ pnpm build
 
 产物位于 `dist/`，可部署到静态服务器，也可直接打开 `dist/index.html`。直接打开时，浏览器和 API 服务需允许 `file://` 页面的存储与跨域请求。
 
+### 静态托管
+
+`dist/` 只有 HTML、CSS 与 JavaScript，没有服务端渲染、前端路由或接口代理，因此任意静态托管都能部署，GitHub Pages 同样适用。资源地址是相对路径（`publicPath: 'auto'`），同一份产物既能放在域名根目录，也能放在 `https://<用户名>.github.io/deepseek-chat-plus/` 这样的子目录下。仓库自带 [pages.yml](.github/workflows/pages.yml)，推送到 `main` 即构建并发布；在仓库设置里把 Pages 的来源选为「GitHub Actions」即可。
+
+由于浏览器直接请求配置的 API 服务，服务端需允许页面来源的跨域请求。DeepSeek 已支持；接入其他服务商时请先确认其 CORS 策略。
+
 ## 功能
 
 - 多会话、自动标题、重命名与删除；编辑提问、重新生成和切换消息分支。
@@ -40,12 +48,12 @@ pnpm build
 
 设置 → 模型服务 集中管理请求配置：
 
-| 字段     | 说明                                                          |
-| -------- | ------------------------------------------------------------- |
-| 服务地址 | 服务的根地址，具体接口路径由协议决定。                        |
+| 字段     | 说明                                                                    |
+| -------- | ----------------------------------------------------------------------- |
+| 服务地址 | 服务的根地址，具体接口路径由协议决定。                                  |
 | 接口协议 | `Anthropic Messages`、`OpenAI Chat Completions` 或 `OpenAI Responses`。 |
-| 模型     | 作为 `model` 发送的模型名称。                                 |
-| API Key  | Anthropic Messages 协议用 `x-api-key`，其余用 `Bearer`。      |
+| 模型     | 作为 `model` 发送的模型名称。                                           |
+| API Key  | Anthropic Messages 协议用 `x-api-key`，其余用 `Bearer`。                |
 
 DeepSeek 扩展能力（深度思考、智能搜索、链接阅读、自动标题与安全审核）只在 Anthropic Messages 协议下发送。切换到 OpenAI 协议后，输入框会隐藏这些开关，附件、语音输入与朗读也会关闭，因为 Files 与语音接口只属于 DeepSeek。附件始终通过 DeepSeek Files API 上传，切换服务后已有对话仍可正常使用。
 

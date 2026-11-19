@@ -6,6 +6,8 @@ A static chat app powered by the DeepSeek API, with support for third-party mode
 
 The app keeps the original chat experience and adds a model service panel: point the base URL at any OpenAI Chat Completions or OpenAI Responses compatible service, or keep the DeepSeek-compatible Messages API, then verify the configuration with a single connection test.
 
+This branch is an enhanced fork of [deepseek-ai/chat-demo](https://github.com/deepseek-ai/chat-demo). Upstream fixes and features are merged in as they land, so everything the original does still works the same way.
+
 ## Getting started
 
 Install Node.js 22.12+ and pnpm, then run:
@@ -26,6 +28,12 @@ pnpm build
 ```
 
 The output is written to `dist/`. Deploy it to a static web server or open `dist/index.html` directly. Opening the file directly requires browser support for storage on `file://` pages and an API service that permits their cross-origin requests.
+
+### Static hosting
+
+`dist/` is plain HTML, CSS, and JavaScript with no server-side rendering, routing, or API proxy, so any static host works, including GitHub Pages. Asset URLs are relative (`publicPath: 'auto'`), so the same build runs from a domain root or from a subdirectory such as `https://<user>.github.io/deepseek-chat-plus/`. The included workflow [pages.yml](.github/workflows/pages.yml) builds and publishes to GitHub Pages on every push to `main`; enable Pages with "GitHub Actions" as the source.
+
+Because the browser talks to the configured service directly, the service must allow cross-origin requests from the page origin. DeepSeek does; for other providers, check their CORS policy.
 
 ## Features
 
