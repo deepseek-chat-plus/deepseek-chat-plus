@@ -31,7 +31,7 @@ pnpm build
 
 ### 静态托管
 
-`dist/` 只有 HTML、CSS 与 JavaScript，没有服务端渲染、前端路由或接口代理，因此任意静态托管都能部署，GitHub Pages 同样适用。资源地址是相对路径（`publicPath: 'auto'`），同一份产物既能放在域名根目录，也能放在 `https://<用户名>.github.io/deepseek-chat-plus/` 这样的子目录下。仓库自带 [pages.yml](.github/workflows/pages.yml)，推送到 `main` 即构建并发布；在仓库设置里把 Pages 的来源选为「GitHub Actions」即可。
+`dist/` 只有 HTML、CSS 与 JavaScript，没有服务端渲染、前端路由或接口代理，因此任意静态托管都能部署，GitHub Pages 同样适用。资源地址是相对路径（`publicPath: 'auto'`），同一份产物既能放在域名根目录，也能放在 `https://deepseek-chat-plus.github.io/deepseek-chat-plus/` 这样的子目录下。仓库自带 [pages.yml](.github/workflows/pages.yml)，推送到 `main` 即构建并发布；在仓库设置里把 Pages 的来源选为「GitHub Actions」即可。
 
 由于浏览器直接请求配置的 API 服务，服务端需允许页面来源的跨域请求。DeepSeek 已支持；接入其他服务商时请先确认其 CORS 策略。
 
@@ -76,6 +76,17 @@ DeepSeek 扩展能力（深度思考、智能搜索、链接阅读、自动标�
 | `pnpm format` | oxfmt 格式化        |
 
 [rspack.config.ts](rspack.config.ts) 默认连接 `https://api.deepseek.com`。`createConfig({ apiOrigin, devServer })` 支持自定义 API 地址和开发服务器代理。
+
+### 跟进上游
+
+本仓库已把原仓库配置为 `upstream`，需要同步其最新改动时把本分支变基到上游之上：
+
+```sh
+git fetch upstream
+git rebase upstream/main
+```
+
+增强提交始终位于上游之上，历史保持「上游 + 本分支新增」，后续同步不易产生冲突。
 
 聊天默认使用 `deepseek-flash`，通过 Anthropic 兼容的 Messages API 通信，附件走 Files API；语音使用 ASR / TTS 接口。DeepSeek 请求会带搜索、链接阅读、标题和 `latest_reminder` 等扩展，接入服务需支持相应能力。附件实际支持的格式以服务端校验为准。
 

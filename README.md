@@ -31,7 +31,7 @@ The output is written to `dist/`. Deploy it to a static web server or open `dist
 
 ### Static hosting
 
-`dist/` is plain HTML, CSS, and JavaScript with no server-side rendering, routing, or API proxy, so any static host works, including GitHub Pages. Asset URLs are relative (`publicPath: 'auto'`), so the same build runs from a domain root or from a subdirectory such as `https://<user>.github.io/deepseek-chat-plus/`. The included workflow [pages.yml](.github/workflows/pages.yml) builds and publishes to GitHub Pages on every push to `main`; enable Pages with "GitHub Actions" as the source.
+`dist/` is plain HTML, CSS, and JavaScript with no server-side rendering, routing, or API proxy, so any static host works, including GitHub Pages. Asset URLs are relative (`publicPath: 'auto'`), so the same build runs from a domain root or from a subdirectory such as `https://deepseek-chat-plus.github.io/deepseek-chat-plus/`. The included workflow [pages.yml](.github/workflows/pages.yml) builds and publishes to GitHub Pages on every push to `main`; enable Pages with "GitHub Actions" as the source.
 
 Because the browser talks to the configured service directly, the service must allow cross-origin requests from the page origin. DeepSeek does; for other providers, check their CORS policy.
 
@@ -76,6 +76,17 @@ Settings → Data → Delete all chats clears all local conversations, original 
 | `pnpm format` | Format with oxfmt            |
 
 [rspack.config.ts](rspack.config.ts) uses `https://api.deepseek.com` by default. Use `createConfig({ apiOrigin, devServer })` to customize the API origin and development server proxy.
+
+### Keeping up with upstream
+
+The fork is configured with the original repository as `upstream`. To pick up its latest changes, rebase this branch on top of it:
+
+```sh
+git fetch upstream
+git rebase upstream/main
+```
+
+The enhanced commits stay on top, so the branch history reads as "upstream plus our additions" and merges stay conflict-free.
 
 Chat uses `deepseek-flash` over the Anthropic-compatible Messages API by default, and Files API for attachments. Speech features use ASR / TTS endpoints. DeepSeek requests include extensions for search, link reading, titles, and `latest_reminder`, so the configured service must support the corresponding capabilities. Supported attachment formats are determined by server-side validation.
 
