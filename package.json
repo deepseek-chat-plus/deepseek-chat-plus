@@ -1,7 +1,7 @@
 {
-  "name": "chat-demo",
-  "version": "0.1.2",
-  "description": "基于 DeepSeek API 的静态聊天示例。",
+  "name": "deepseek-chat-plus",
+  "version": "0.2.0",
+  "description": "基于 DeepSeek API 的静态聊天应用，支持接入第三方模型服务。",
   "license": "MIT",
   "private": true,
   "type": "module",

@@ -1,18 +1,18 @@
-# chat-demo
+# DeepSeek Chat Plus
 
 English | [简体中文](README.zh-CN.md)
 
-A static chat demo powered by the DeepSeek API. No application backend is required: the browser connects directly to the configured API service.
+A static chat app powered by the DeepSeek API, with support for third-party model services. No application backend is required: the browser connects directly to the configured API service.
 
-You can [try the app online](https://deepseek-ai.github.io/chat-demo/) or download the archive from [Releases](https://github.com/deepseek-ai/deepseek-chat-demo/releases), extract it, and double-click `index.html` to use it locally without installation or a build. Enter your API key in Settings before your first chat.
+The app keeps the original chat experience and adds a model service panel: point the base URL at any OpenAI Chat Completions or OpenAI Responses compatible service, or keep the DeepSeek-compatible Messages API, then verify the configuration with a single connection test.
 
 ## Getting started
 
 Install Node.js 22.12+ and pnpm, then run:
 
 ```sh
-git clone https://github.com/deepseek-ai/chat-demo.git
-cd chat-demo
+git clone <repository-url>
+cd deepseek-chat-plus
 pnpm install
 pnpm dev
 ```
@@ -34,14 +34,28 @@ The output is written to `dist/`. Deploy it to a static web server or open `dist
 - Upload, paste, or drag and drop attachments; use voice input and read replies aloud. A live audio spectrum appears in the first row of the input area while recording on mobile.
 - Markdown, syntax highlighting, KaTeX math, and Mermaid diagrams.
 - Simplified Chinese and English, light and dark themes, mobile layouts, location settings, and chat history import and export.
+- Settings → Model service configures the base URL, protocol, model, and API Key, and tests the connection with one minimal request.
+
+## Model services
+
+Settings → Model service holds the whole request configuration:
+
+| Field    | Meaning                                                                 |
+| -------- | ----------------------------------------------------------------------- |
+| Base URL | Root address of the service; the request path is appended by protocol.  |
+| Protocol | `Anthropic Messages`, `OpenAI Chat Completions`, or `OpenAI Responses`. |
+| Model    | Model name sent as `model`.                                             |
+| API Key  | Sent as `x-api-key` for Anthropic Messages and `Bearer` otherwise.      |
+
+DeepSeek extensions (deep thinking, smart search, link reading, automatic titles, safety check) are only sent to the Anthropic Messages protocol. Under the OpenAI protocols the input area hides those switches, and attachments, voice input, and read-aloud are disabled because the Files and speech APIs are DeepSeek-only. Attachments are always uploaded through the DeepSeek Files API so that existing conversations keep working after switching providers.
 
 ## Data and storage
 
-Your API key and settings are stored in the browser's localStorage. Conversations and original attachments are stored in IndexedDB. Local data is isolated by browser profile and site origin. Sending messages, uploading attachments, and using speech features sends the relevant content to the configured API service.
+Your model service configuration and settings are stored in the browser's localStorage. Conversations and original attachments are stored in IndexedDB. Local data is isolated by browser profile and site origin. Sending messages, uploading attachments, and using speech features sends the relevant content to the configured API service.
 
 History import and export in Settings use ZIP archives. After confirmation and successful validation, importing replaces all local conversations and attachments. Exports include conversations and locally available original images, but exclude API keys, settings, and original non-image attachments. See the [history import/export documentation (Chinese)](src/services/chat/history/README.md) for the archive format and preservation details.
 
-Settings → Data → Delete all chats clears all local conversations, original attachments, and unsent drafts after confirmation. It stops ongoing replies and returns to a new chat. Your API key and settings are preserved; files already uploaded to the API service are not deleted.
+Settings → Data → Delete all chats clears all local conversations, original attachments, and unsent drafts after confirmation. It stops ongoing replies and returns to a new chat. Your model service configuration and settings are preserved; files already uploaded to the API service are not deleted.
 
 ## Development
 
@@ -55,7 +69,7 @@ Settings → Data → Delete all chats clears all local conversations, original 
 
 [rspack.config.ts](rspack.config.ts) uses `https://api.deepseek.com` by default. Use `createConfig({ apiOrigin, devServer })` to customize the API origin and development server proxy.
 
-Chat uses `deepseek-flash` by default through Anthropic-compatible Messages / Files APIs. Speech features use ASR / TTS endpoints. Requests include extensions for search, link reading, titles, and `latest_reminder`, so the configured service must support the corresponding capabilities. Supported attachment formats are determined by server-side validation.
+Chat uses `deepseek-flash` over the Anthropic-compatible Messages API by default, and Files API for attachments. Speech features use ASR / TTS endpoints. DeepSeek requests include extensions for search, link reading, titles, and `latest_reminder`, so the configured service must support the corresponding capabilities. Supported attachment formats are determined by server-side validation.
 
 ```text
 src/
@@ -63,7 +77,7 @@ src/
   components/          Chat, settings, Markdown, and other UI components
   i18n/                English and Chinese translations
   services/
-    api/               API requests, SSE, and protocol types
+    api/               Requests, protocols (Messages / OpenAI compatible), SSE, and types
     chat/              Conversations, message branches, storage, and history import/export
     markdown/          Markdown parsing, syntax highlighting, and diagrams
     speech/            Audio recording and read-aloud playback
