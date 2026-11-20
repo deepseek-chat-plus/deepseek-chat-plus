@@ -31,9 +31,9 @@ The output is written to `dist/`. Deploy it to a static web server or open `dist
 
 ### Static hosting
 
-The site is published at [deepseek-chat-plus.github.io](https://deepseek-chat-plus.github.io/) by the `deepseek-chat-plus.github.io` repository, which hosts the same workflow; the URL needs no path.
+The site is served at [deepseek-chat-plus.github.io](https://deepseek-chat-plus.github.io/) from the repository of the same name, which holds the same commits. Both repositories run [pages.yml](.github/workflows/pages.yml) on every push to `main`, but only the site repository deploys, so the address is the domain root rather than a subdirectory.
 
-`dist/` is plain HTML, CSS, and JavaScript with no server-side rendering, routing, or API proxy, so any static host works, including GitHub Pages. Asset URLs are relative (`publicPath: 'auto'`), so the same build runs from a domain root or from a subdirectory. The included workflow [pages.yml](.github/workflows/pages.yml) builds and publishes to GitHub Pages on every push to `main`; enable Pages with "GitHub Actions" as the source.
+`dist/` is plain HTML, CSS, and JavaScript with no server-side rendering, routing, or API proxy, so any static host works, including GitHub Pages. Asset URLs are relative (`publicPath: 'auto'`), so the same build runs from a domain root or from a subdirectory. Enable Pages with "GitHub Actions" as the source.
 
 Because the browser talks to the configured service directly, the service must allow cross-origin requests from the page origin. DeepSeek does; for other providers, check their CORS policy.
 
@@ -59,6 +59,20 @@ Settings → Model service holds the whole request configuration:
 | API Key  | Sent as `x-api-key` for Anthropic Messages and `Bearer` otherwise.      |
 
 DeepSeek extensions (deep thinking, smart search, link reading, automatic titles, safety check) are only sent to the Anthropic Messages protocol. Under the OpenAI protocols the input area hides those switches, and attachments, voice input, and read-aloud are disabled because the Files and speech APIs are DeepSeek-only. Attachments are always uploaded through the DeepSeek Files API so that existing conversations keep working after switching providers.
+
+## Advanced settings
+
+Settings → Advanced controls how much of a conversation is sent and how hard the model thinks:
+
+| Field           | Default | Meaning                                                                                                                       |
+| --------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Context length  | `128K`  | Budget for the conversation history; blank means no limit.                                                                    |
+| Max output      | `128K`  | `max_tokens` / `max_output_tokens`; blank means no limit.                                                                     |
+| Reasoning level | `High`  | `Low`, `High`, or `Max`, sent as `output_config.effort`, `reasoning_effort`, or `reasoning.effort` depending on the protocol. |
+
+Both limits accept a plain number or a multiple such as `128K` and `0.5M`, and are stored as typed. A value that cannot be parsed is flagged in place and left unsent.
+
+No DeepSeek request carries a context-window parameter, so the context length is enforced in the browser: when the estimated history size exceeds the budget, the oldest question-and-answer rounds are dropped before the request is built. The current question and the continuation prefix are always kept, so a long conversation degrades into recent context instead of failing.
 
 ## Data and storage
 

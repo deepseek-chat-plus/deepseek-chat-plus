@@ -31,9 +31,9 @@ pnpm build
 
 ### 静态托管
 
-站点由 `deepseek-chat-plus.github.io` 仓库发布在 [deepseek-chat-plus.github.io](https://deepseek-chat-plus.github.io/)，该仓库承载同一份工作流，地址不带路径。
+站点由同名仓库 `deepseek-chat-plus.github.io` 在 [deepseek-chat-plus.github.io](https://deepseek-chat-plus.github.io/) 提供，两边保存同一份提交。两个仓库都会在推送到 `main` 时运行 [pages.yml](.github/workflows/pages.yml)，但只有站点仓库负责发布，所以地址是域名根目录而不是子目录。
 
-`dist/` 只有 HTML、CSS 与 JavaScript，没有服务端渲染、前端路由或接口代理，因此任意静态托管都能部署，GitHub Pages 同样适用。资源地址是相对路径（`publicPath: 'auto'`），同一份产物既能放在域名根目录，也能放在子目录下。仓库自带 [pages.yml](.github/workflows/pages.yml)，推送到 `main` 即构建并发布；在仓库设置里把 Pages 的来源选为「GitHub Actions」即可。
+`dist/` 只有 HTML、CSS 与 JavaScript，没有服务端渲染、前端路由或接口代理，因此任意静态托管都能部署，GitHub Pages 同样适用。资源地址是相对路径（`publicPath: 'auto'`），同一份产物既能放在域名根目录，也能放在子目录下。在仓库设置里把 Pages 的来源选为「GitHub Actions」即可。
 
 由于浏览器直接请求配置的 API 服务，服务端需允许页面来源的跨域请求。DeepSeek 已支持；接入其他服务商时请先确认其 CORS 策略。
 
@@ -59,6 +59,20 @@ pnpm build
 | API Key  | Anthropic Messages 协议用 `x-api-key`，其余用 `Bearer`。                |
 
 DeepSeek 扩展能力（深度思考、智能搜索、链接阅读、自动标题与安全审核）只在 Anthropic Messages 协议下发送。切换到 OpenAI 协议后，输入框会隐藏这些开关，附件、语音输入与朗读也会关闭，因为 Files 与语音接口只属于 DeepSeek。附件始终通过 DeepSeek Files API 上传，切换服务后已有对话仍可正常使用。
+
+## 高级设置
+
+设置 → 高级设置 决定请求携带多少历史、模型思考多深：
+
+| 字段       | 默认值 | 说明                                                                                                      |
+| ---------- | ------ | --------------------------------------------------------------------------------------------------------- |
+| 上下文长度 | `128K` | 历史上下文的上限，留空表示不限制。                                                                        |
+| 最大输出   | `128K` | 作为 `max_tokens` / `max_output_tokens` 发送，留空表示不限制。                                            |
+| 推理挡位   | `High` | `Low`、`High` 或 `Max`，按协议分别写入 `output_config.effort`、`reasoning_effort` 或 `reasoning.effort`。 |
+
+两个上限都支持纯数字与 `128K`、`0.5M` 这样的倍数写法，并按输入原样保存；无法解析时在输入框下方提示，并且不发送该字段。
+
+DeepSeek 的任何请求都没有上下文窗口参数，因此上下文长度在浏览器侧生效：估算的历史体积超过上限时，请求组装前从最早的一轮问答开始整轮丢弃。本轮提问与续写前缀始终保留，长对话只会退化为近期上下文，不会因为超限失败。
 
 ## 数据
 
