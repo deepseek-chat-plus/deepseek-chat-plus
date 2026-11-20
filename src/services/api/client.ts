@@ -54,11 +54,11 @@ const hasFile = (body: CreateMessageRequest) =>
       message.content.some((block) => block.type === 'image' || block.type === 'document')
   )
 
-/** 鉴权头；json 为 false 时按 SSE 事件流接收 */
-const providerHeaders = (provider: ProviderConfig, json: boolean): Record<string, string> => ({
+/** 报文一律是 JSON，必须声明类型；stream 为真时按 SSE 事件流接收 */
+const providerHeaders = (provider: ProviderConfig, stream: boolean): Record<string, string> => ({
   ...authHeaders(provider.protocol, provider.apiKey),
-  Accept: json ? 'application/json' : 'text/event-stream',
-  ...(json ? { 'Content-Type': 'application/json' } : {}),
+  'Content-Type': 'application/json',
+  Accept: stream ? 'text/event-stream' : 'application/json',
 })
 
 /** 发一次非流式请求并解析 JSON，用于连通性测试 */
@@ -75,7 +75,7 @@ export const verifyProvider = async (
     : toOpenAIProbe(provider.protocol, provider.model)
   const response = await request(messageEndpoint(provider), {
     method: 'POST',
-    headers: providerHeaders(provider, true),
+    headers: providerHeaders(provider, false),
     body: JSON.stringify(body),
     signal,
   })
@@ -121,7 +121,7 @@ const openStream = async (
 ) => {
   const response = await request(messageEndpoint(provider), {
     method: 'POST',
-    headers: { ...providerHeaders(provider, false), ...headers },
+    headers: { ...providerHeaders(provider, true), ...headers },
     body: JSON.stringify({ ...body, stream: true }),
     signal,
   })

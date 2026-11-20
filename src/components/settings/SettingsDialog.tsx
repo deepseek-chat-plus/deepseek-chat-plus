@@ -38,9 +38,8 @@ import { closeSettings, useSettingsDialog, type SettingsSection } from './settin
 import styles from './Settings.module.css'
 
 /**
- * 设置弹窗：分「模型服务」（服务地址、协议、模型、API Key、连通性测试）、
- * 「通用设置」（主题、语言、朗读音色、位置）、「高级设置」（上下文与输出上限、推理挡位）
- * 与「数据管理」（导入、导出、删除）。
+ * 设置弹窗：分「通用设置」（主题、语言、朗读音色、位置）、「模型服务」（服务地址、协议、模型、API Key、连通性测试）、
+ * 「高级设置」（上下文与输出上限、推理挡位）与「数据管理」（导入、导出、删除）。
  * 桌面端为居中弹窗、左侧导航；移动端为底部弹层、导航横排在内容上方
  */
 export const SettingsDialog = () => {
@@ -50,14 +49,14 @@ export const SettingsDialog = () => {
 
 const sections: { value: SettingsSection; label: TranslationKey; icon: ReactNode }[] = [
   {
-    value: 'provider',
-    label: 'settingDialogAsideProviderOptionLabel',
-    icon: <IconLinkOutline16 />,
-  },
-  {
     value: 'general',
     label: 'settingDialogAsideGeneralOptionLabel',
     icon: <IconSettingsOutline16 />,
+  },
+  {
+    value: 'provider',
+    label: 'settingDialogAsideProviderOptionLabel',
+    icon: <IconLinkOutline16 />,
   },
   {
     value: 'advanced',
@@ -104,15 +103,15 @@ const SettingsContent = () => {
           ))}
         </div>
         <div role="tabpanel" className={styles.content}>
-          {section === 'provider' ? (
-            <ProviderSetting />
-          ) : section === 'general' ? (
+          {section === 'general' ? (
             <>
               <ThemeSetting />
               <LocaleSetting />
               <TtsVoiceSetting />
               <LocationSetting />
             </>
+          ) : section === 'provider' ? (
+            <ProviderSetting />
           ) : section === 'advanced' ? (
             <AdvancedSetting />
           ) : (
