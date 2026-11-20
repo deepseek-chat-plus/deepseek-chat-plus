@@ -277,11 +277,11 @@
   transition-property: border, background;
   transition-duration: 0.2s;
 
-  &:hover:not(:disabled) {
+  &:hover:not([aria-disabled='true']) {
     background-color: var(--dsw-alias-interactive-bg-hover);
   }
 
-  &:disabled {
+  &[aria-disabled='true'] {
     opacity: 0.4;
     cursor: not-allowed;
   }

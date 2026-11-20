@@ -21,11 +21,9 @@
       background-color: var(--dsw-specific-sidebar-nav-item-hover);
     }
 
-    &:hover,
-    &.active {
-      .action {
-        display: flex;
-      }
+    /* 菜单打开时保留定位锚点，即使鼠标已移出会话项。 */
+    &:not(.active, :hover) .actionButton[aria-expanded='false'] {
+      display: none;
     }
   }
 }
@@ -40,7 +38,7 @@
 }
 
 .action {
-  display: none;
+  display: flex;
   flex-shrink: 0;
   margin-left: 4px;
 }
@@ -57,12 +55,6 @@
   font: inherit;
   font-size: 14px;
   outline: none;
-}
-
-@media (hover: none) {
-  .action {
-    display: flex;
-  }
 }
 
 @media not all and (min-width: 768px) {

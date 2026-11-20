@@ -166,6 +166,8 @@ export const en = {
   uploadFileStatusFailed: 'Upload failed',
   uploadRetry: '{message}. Click to retry',
   chatInputPlaceholderChat: 'Enter a message',
+  providerChatToggleUnsupported:
+    'This switch requires Anthropic Messages with DeepSeek extensions. Change the protocol in Settings → Model service.',
   deactivatedThinkTooltip: 'Think before responding to solve reasoning problems',
   thinkingSwitch: 'DeepThink',
   deactivatedSearchTooltip: 'Search the web when necessary',

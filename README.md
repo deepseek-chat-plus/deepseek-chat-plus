@@ -58,7 +58,7 @@ Settings → Model service holds the whole request configuration:
 | Model    | Model name sent as `model`.                                             |
 | API Key  | Sent as `x-api-key` for Anthropic Messages and `Bearer` otherwise.      |
 
-DeepSeek extensions (deep thinking, smart search, link reading, automatic titles, safety check) are only sent to the Anthropic Messages protocol. Under the OpenAI protocols the input area hides those switches, and attachments, voice input, and read-aloud are disabled because the Files and speech APIs are DeepSeek-only. Attachments are always uploaded through the DeepSeek Files API so that existing conversations keep working after switching providers.
+The DeepThink and Search switches are below the message box. They can be toggled independently with an Anthropic Messages service that supports DeepSeek extensions. With an OpenAI-compatible protocol, the switches are visible but unavailable. OpenAI-compatible requests still include the reasoning effort from Advanced settings, but do not send the DeepSeek extensions for search, link reading, automatic titles, or safety checks. File uploads, voice input, and read-aloud still use DeepSeek-specific APIs. Existing chats remain available locally after switching services.
 
 ## Advanced settings
 

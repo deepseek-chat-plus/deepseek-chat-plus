@@ -155,6 +155,8 @@ export const zh = {
   uploadFileStatusFailed: '上传失败',
   uploadRetry: '{message}，点击重试',
   chatInputPlaceholderChat: '请输入消息',
+  providerChatToggleUnsupported:
+    '此开关仅适用于支持 DeepSeek 扩展的 Anthropic Messages 协议，可在「设置 → 模型服务」切换。',
   deactivatedThinkTooltip: '先思考后回答，解决推理问题',
   thinkingSwitch: '深度思考',
   deactivatedSearchTooltip: '按需搜索网页',

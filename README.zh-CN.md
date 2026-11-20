@@ -58,7 +58,7 @@ pnpm build
 | 模型     | 作为 `model` 发送的模型名称。                                           |
 | API Key  | Anthropic Messages 协议用 `x-api-key`，其余用 `Bearer`。                |
 
-DeepSeek 扩展能力（深度思考、智能搜索、链接阅读、自动标题与安全审核）只在 Anthropic Messages 协议下发送。切换到 OpenAI 协议后，输入框会隐藏这些开关，附件、语音输入与朗读也会关闭，因为 Files 与语音接口只属于 DeepSeek。附件始终通过 DeepSeek Files API 上传，切换服务后已有对话仍可正常使用。
+深度思考和智能搜索开关位于输入框下方。使用支持 DeepSeek 扩展的 Anthropic Messages 服务时，可以独立开关；使用 OpenAI 兼容协议时，开关仍可见，但不可用。OpenAI 兼容协议仍会发送高级设置中的推理挡位，不发送 DeepSeek 的搜索、链接阅读、自动标题与安全审核扩展。附件上传、语音输入与朗读仍使用 DeepSeek 专用接口。切换服务后，已有对话仍保存在本地。
 
 ## 高级设置
 

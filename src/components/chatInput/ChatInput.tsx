@@ -51,11 +51,26 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
     (state) => sessionId !== null && Object.hasOwn(state.streaming, sessionId)
   )
   const thinking = useSettings((state) => state.thinking)
+  const search = useSettings((state) => state.search)
   const importingHistory = useChatStore((state) => state.importingHistory)
   const isMobile = useIsMobile()
-  const search = useSettings((state) => state.search)
-  // 附件与语音走 DeepSeek 兼容接口，其他模型服务下不提供入口
-  const extended = hasDeepseekExtensions(useSettings((state) => state.provider.protocol))
+  const extended = useSettings((state) => hasDeepseekExtensions(state.provider.protocol))
+  const toggles = [
+    {
+      key: 'thinking',
+      pressed: thinking,
+      label: 'thinkingSwitch',
+      tooltip: 'deactivatedThinkTooltip',
+      Icon: IconThinkOutline14,
+    },
+    {
+      key: 'search',
+      pressed: search,
+      label: 'search',
+      tooltip: 'deactivatedSearchTooltip',
+      Icon: IconGlobeLanguageOutline14,
+    },
+  ] as const
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const togglesRef = useRef<HTMLDivElement>(null)
@@ -207,35 +222,30 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
         </div>
       </div>
       <div className={styles.functionRow}>
-        {/* 深度思考 / 智能搜索只适用于 DeepSeek 兼容接口，tooltip 在按钮上方 */}
-        {extended ? (
-          <div ref={togglesRef} className={styles.toggles}>
-            <Tooltip content={t('deactivatedThinkTooltip')}>
+        <div ref={togglesRef} className={styles.toggles}>
+          {toggles.map(({ key, pressed, label, tooltip, Icon }) => (
+            <Tooltip key={key} content={t(extended ? tooltip : 'providerChatToggleUnsupported')}>
               <button
                 type="button"
-                className={clsx(styles.toggle, thinking && styles.selected)}
-                aria-label={t('thinkingSwitch')}
-                aria-pressed={thinking}
-                onClick={() => updateSettings({ thinking: !thinking })}
+                className={clsx(styles.toggle, extended && pressed && styles.selected)}
+                aria-label={t(label)}
+                aria-pressed={extended && pressed}
+                aria-disabled={!extended}
+                onClick={() => {
+                  // 移动端没有 Tooltip；点按不可用的开关只说明原因，不改变偏好。
+                  if (!extended) {
+                    showToast({ key: 'providerChatToggleUnsupported' })
+                    return
+                  }
+                  updateSettings({ [key]: !pressed })
+                }}
               >
-                <IconThinkOutline14 />
-                <span className={styles.toggleLabel}>{t('thinkingSwitch')}</span>
+                <Icon />
+                <span className={styles.toggleLabel}>{t(label)}</span>
               </button>
             </Tooltip>
-            <Tooltip content={t('deactivatedSearchTooltip')}>
-              <button
-                type="button"
-                className={clsx(styles.toggle, search && styles.selected)}
-                aria-label={t('search')}
-                aria-pressed={search}
-                onClick={() => updateSettings({ search: !search })}
-              >
-                <IconGlobeLanguageOutline14 />
-                <span className={styles.toggleLabel}>{t('search')}</span>
-              </button>
-            </Tooltip>
-          </div>
-        ) : null}
+          ))}
+        </div>
         <div className={styles.right}>
           {extended ? (
             <VoiceButton
