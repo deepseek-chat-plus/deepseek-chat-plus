@@ -58,11 +58,11 @@ Settings → Model service holds the whole request configuration:
 | Model    | Model name sent as `model`.                                             |
 | API Key  | Sent as `x-api-key` for Anthropic Messages and `Bearer` otherwise.      |
 
-The DeepThink and Search switches are below the message box. Availability depends on the service, model, and protocol. DeepSeek's native Messages integration retains its built-in search, URL reading, automatic titles, and safety checks. DeepThink is supported across all three protocols for DeepSeek's official endpoints and `hy4-flash`; other OpenAI-compatible services still use the reasoning effort in Advanced settings without an assumed on/off switch. File uploads, voice input, and read-aloud still use DeepSeek-specific APIs. Existing chats remain available locally after switching services.
+The DeepThink and Search switches are below the message box. Settings → Model service → Thinking control format defaults to automatic detection for known model and protocol combinations. If a gateway renames a model or expects different parameters, choose the format it documents or use the service default. A low reasoning effort does not count as turning off thinking on models without a true off switch. File uploads, voice input, and read-aloud still use DeepSeek-specific APIs. Switching services does not alter local conversations.
 
 ### Standalone web search
 
-Tencent's `hy4-flash` supports thinking but is not in [TokenHub's native search matrix](https://cloud.tencent.com/document/product/1823/132358#2fbb127a-dc23-4296-b791-3ba7eb734e75). For a model without native search integration, add a [DeepSeek Search](https://api-docs.deepseek.com/guides/search/) API key under Settings → Model service → Standalone web search key, then turn on Search in the message box. The app searches first and uses the current model to answer with the retrieved references. This works across all three chat protocols without changing models or model keys.
+DeepSeek's native Messages integration retains its built-in search. For other services, add a valid [DeepSeek Search](https://api-docs.deepseek.com/guides/search/) API key under Settings → Model service → Standalone web search key, then turn on Search in the message box. The app calls DeepSeek Search directly and passes the retrieved references to the current model. It works across all three chat protocols and does not require the chat service to support search tools or receive the search key.
 
 Standalone search sends only the first 128 normalized characters of the current question to DeepSeek Search, not chat history, attachments, or the model key. Search is billed separately; turning on native search does not turn on standalone search. If search fails, the app stops before calling the model. Turn Search off to send without it. This does not change the chat provider's CORS requirements.
 
@@ -74,7 +74,7 @@ Settings → Advanced controls how much of a conversation is sent and how hard t
 | --------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | Context length  | `128K`  | Budget for the conversation history; blank means no limit.                                                                    |
 | Max output      | `128K`  | `max_tokens` / `max_output_tokens`; blank means no limit.                                                                     |
-| Reasoning level | `High`  | `Low`, `High`, or `Max`, sent as `output_config.effort`, `reasoning_effort`, or `reasoning.effort` depending on the protocol. |
+| Reasoning level | `High`  | `Low`, `High`, or `Max`, mapped to a supported effort or token budget. Services with only an on/off switch receive no effort. |
 
 Both limits accept a plain number or a multiple such as `128K` and `0.5M`, and are stored as typed. A value that cannot be parsed is flagged in place and left unsent.
 

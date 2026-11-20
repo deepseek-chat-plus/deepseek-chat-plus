@@ -170,7 +170,7 @@ export type DeepseekReadUrlTool = {
   name: 'deepseek_read_url'
 }
 
-/** 深度思考的推理挡位；三种协议的取值范围一致，其余写法由服务端映射到这三档 */
+/** 应用内部使用的推理挡位；由各协议适配成服务支持的值或预算。 */
 export type ReasoningEffort = 'low' | 'high' | 'max'
 
 export type CreateMessageRequest = {

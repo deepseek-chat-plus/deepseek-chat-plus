@@ -167,9 +167,21 @@ export const en = {
   uploadRetry: '{message}. Click to retry',
   chatInputPlaceholderChat: 'Enter a message',
   providerThinkingUnsupported:
-    'Thinking cannot be toggled for this model service. You can still set reasoning effort in Advanced settings.',
-  providerThinkingOutputLimit:
-    'Hy4 Flash requires a max output above 1024 tokens with thinking on.',
+    'There is no thinking toggle for this service. If your gateway documents one, choose its format in Settings → Model service.',
+  providerThinkingOutputLimit: 'A thinking budget requires a max output above 1024 tokens.',
+  providerReasoningControl: 'Thinking control format',
+  providerReasoningControlDescription:
+    'Auto works for recognized models. For a gateway alias, choose the format its documentation specifies.',
+  providerReasoningAuto: 'Auto detect',
+  providerReasoningService: 'Use service default',
+  providerReasoningToggle: 'Thinking switch (thinking.type)',
+  providerReasoningBudget: 'Thinking budget (budget_tokens)',
+  providerReasoningAdaptive: 'Adaptive thinking (adaptive)',
+  providerReasoningBoolean: 'Boolean switch (enable_thinking)',
+  providerReasoningTemplate: 'Template switch (chat_template_kwargs)',
+  providerReasoningEffort: 'Reasoning effort (none to disable)',
+  providerReasoningNoThink: 'Reasoning effort (no_think to disable)',
+  providerReasoningNestedEffort: 'Nested reasoning effort (reasoning.effort)',
   providerSearchUnavailable:
     'This connection has no native search integration. Add a standalone search key in Settings → Model service.',
   providerStandaloneSearchTooltip:

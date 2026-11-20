@@ -6,12 +6,12 @@
  */
 import { ApiError } from './http.js'
 import {
-  HY4_FLASH_MAX_OUTPUT,
-  thinkingMode,
+  reasoningProfile,
   type ApiProtocol,
   type ChatRequest,
   type ProviderConfig,
 } from './provider.js'
+import { modelName, reasoningEffortFor } from './reasoning.js'
 import type { ServerSentEvent } from './sse.js'
 import type { MessageParam, MessageStreamEvent, MessageUsage, StopReason } from './types.js'
 
@@ -39,38 +39,92 @@ const toMessages = (messages: MessageParam[]): OpenAIMessage[] =>
     return content.trim() ? [{ role: message.role, content }] : []
   })
 
-/** 已知开关格式才显式开关推理，其他服务保留原有的推理挡位参数。 */
+/** 同一开关适配不同服务的字段形状；未识别的服务不发送猜测的推理字段。 */
+const openAIThinking = (
+  protocol: ApiProtocol,
+  chat: ChatRequest,
+  profile: ReturnType<typeof reasoningProfile>
+): object => {
+  if (!profile) {
+    return {}
+  }
+  const { control } = profile
+  const enabledEffort = reasoningEffortFor(profile, chat.reasoningEffort)
+  switch (control) {
+    case 'boolean':
+      return { enable_thinking: chat.thinking }
+    case 'template':
+      return { chat_template_kwargs: { enable_thinking: chat.thinking } }
+    case 'toggle':
+    case 'adaptive':
+      return {
+        thinking: {
+          type: chat.thinking ? (control === 'adaptive' ? 'adaptive' : 'enabled') : 'disabled',
+        },
+        ...(chat.thinking && profile.maxEffort ? { reasoning_effort: enabledEffort } : {}),
+        ...(chat.thinking && profile.splitThinking ? { reasoning_split: true } : {}),
+      }
+    case 'effort':
+    case 'effort-no-think':
+    case 'effort-only':
+    case 'nested-effort': {
+      const effort =
+        chat.thinking || control === 'effort-only'
+          ? enabledEffort
+          : control === 'effort-no-think'
+            ? 'no_think'
+            : 'none'
+      if (protocol === 'openai-responses' || control === 'nested-effort') {
+        return { reasoning: { effort } }
+      }
+      return {
+        reasoning_effort: effort,
+        ...(profile.splitThinking ? { reasoning_split: true } : {}),
+      }
+    }
+    default:
+      return {}
+  }
+}
+
+const chatOutputLimit = (model: string, tokens?: number) => {
+  if (!tokens) {
+    return {}
+  }
+  return /^(?:gpt-[56]|o[134])(?:[.-]|$)/.test(modelName(model))
+    ? { max_completion_tokens: tokens }
+    : { max_tokens: tokens }
+}
+
 export const toOpenAIBody = (provider: ProviderConfig, chat: ChatRequest) => {
   const messages = toMessages(chat.messages)
-  const mode = thinkingMode(provider)
-  const effort = mode === 'hy4' ? 'high' : chat.reasoningEffort
+  const profile = reasoningProfile(provider)
+  const thinking = openAIThinking(provider.protocol, chat, profile)
+  const ceiling = profile?.maxOutput
   const maxOutputTokens =
-    mode === 'hy4' && chat.maxOutputTokens
-      ? Math.min(chat.maxOutputTokens, HY4_FLASH_MAX_OUTPUT)
-      : chat.maxOutputTokens
+    ceiling && chat.maxOutputTokens ? Math.min(ceiling, chat.maxOutputTokens) : chat.maxOutputTokens
   if (provider.protocol === 'openai-responses') {
     return {
       model: chat.model,
       ...(chat.system ? { instructions: chat.system } : {}),
       input: messages,
-      reasoning: { effort: mode && !chat.thinking ? 'none' : effort },
+      ...thinking,
       ...(maxOutputTokens ? { max_output_tokens: maxOutputTokens } : {}),
     }
   }
   return {
     model: chat.model,
     messages: chat.system ? [{ role: 'system', content: chat.system }, ...messages] : messages,
-    ...(mode ? { thinking: { type: chat.thinking ? 'enabled' : 'disabled' } } : {}),
-    ...(mode !== 'hy4' || chat.thinking ? { reasoning_effort: effort } : {}),
-    ...(maxOutputTokens ? { max_tokens: maxOutputTokens } : {}),
+    ...thinking,
+    ...chatOutputLimit(chat.model, maxOutputTokens),
   }
 }
 
 /** 连通性测试报文：一次最小的非流式生成，返回内容不展示 */
 export const toOpenAIProbe = (protocol: ApiProtocol, model: string) =>
   protocol === 'openai-responses'
-    ? { model, input: 'ping', max_output_tokens: 1 }
-    : { model, messages: [{ role: 'user', content: 'ping' }], max_tokens: 1 }
+    ? { model, input: 'ping', max_output_tokens: 16 }
+    : { model, messages: [{ role: 'user', content: 'ping' }], ...chatOutputLimit(model, 16) }
 
 /** 单帧解析结果：可能同时带来增量、结束原因与用量 */
 type Chunk = {

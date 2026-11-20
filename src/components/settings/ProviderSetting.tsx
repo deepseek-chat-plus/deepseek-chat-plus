@@ -12,8 +12,10 @@ import {
   defaultBaseUrl,
   hasDeepseekExtensions,
   normalizeProvider,
+  REASONING_CONTROLS,
   type ApiProtocol,
   type ProviderConfig,
+  type ReasoningControl,
 } from '../../services/api/provider.js'
 import { updateSettings, useSettings } from '../../services/settings.js'
 import { translate, useTranslate, type TranslationKey } from '../../i18n/index.js'
@@ -25,6 +27,19 @@ const protocols: { value: ApiProtocol; label: TranslationKey }[] = [
   { value: 'openai-chat', label: 'providerProtocolOpenAIChat' },
   { value: 'openai-responses', label: 'providerProtocolOpenAIResponses' },
 ]
+
+const reasoningLabels: Record<ReasoningControl, TranslationKey> = {
+  auto: 'providerReasoningAuto',
+  service: 'providerReasoningService',
+  toggle: 'providerReasoningToggle',
+  budget: 'providerReasoningBudget',
+  adaptive: 'providerReasoningAdaptive',
+  boolean: 'providerReasoningBoolean',
+  template: 'providerReasoningTemplate',
+  effort: 'providerReasoningEffort',
+  'effort-no-think': 'providerReasoningNoThink',
+  'nested-effort': 'providerReasoningNestedEffort',
+}
 
 /** 输入框与已保存的 Key 共用同一个胶囊容器，保持设置项右对齐 */
 const wideField = clsx(styles.field, styles.fieldControl)
@@ -155,6 +170,7 @@ export const ProviderSetting = () => {
             onChange={(protocol) =>
               update({
                 protocol,
+                reasoningControl: normalizeProvider({ ...provider, protocol }).reasoningControl,
                 // 地址没改过（或已清空）时跟随协议切换，改过的保持不动
                 ...(normalizeProvider(provider).baseUrl === defaultBaseUrl(provider.protocol)
                   ? { baseUrl: defaultBaseUrl(protocol) }
@@ -181,6 +197,26 @@ export const ProviderSetting = () => {
           </div>
         }
       />
+      {!hasDeepseekExtensions(provider) ? (
+        <SettingCell
+          label={t('providerReasoningControl')}
+          description={t('providerReasoningControlDescription')}
+          status={null}
+          className={styles.wideCell}
+          action={
+            <Select
+              ariaLabel={t('providerReasoningControl')}
+              className={styles.fieldControl}
+              value={provider.reasoningControl}
+              options={REASONING_CONTROLS[provider.protocol].map((value) => ({
+                value,
+                label: t(reasoningLabels[value]),
+              }))}
+              onChange={(reasoningControl) => update({ reasoningControl })}
+            />
+          }
+        />
+      ) : null}
       <SettingCell
         label={t('providerApiKey')}
         status={null}

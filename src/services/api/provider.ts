@@ -2,10 +2,30 @@
  * 模型服务配置、地址规则与能力声明。本模块只描述数据与地址，不发起请求，
  * 供设置层与各协议适配器共用，避免循环引用。
  */
+import { inferReasoningProfile, type ReasoningProfile } from './reasoning.js'
 import type { MessageParam, ReasoningEffort } from './types.js'
 
 /** 与模型服务通信的协议；协议格式与厂商扩展独立。 */
 export type ApiProtocol = 'anthropic' | 'openai-chat' | 'openai-responses'
+
+/** 手动模式声明报文形状，不绑定厂商；仅列出当前协议可以编码的形状。 */
+export const REASONING_CONTROLS = {
+  anthropic: ['auto', 'service', 'toggle', 'budget', 'adaptive'],
+  'openai-chat': [
+    'auto',
+    'service',
+    'toggle',
+    'adaptive',
+    'boolean',
+    'template',
+    'effort',
+    'effort-no-think',
+    'nested-effort',
+  ],
+  'openai-responses': ['auto', 'service', 'effort', 'effort-no-think'],
+} as const satisfies Record<ApiProtocol, readonly string[]>
+
+export type ReasoningControl = (typeof REASONING_CONTROLS)[ApiProtocol][number]
 
 /** 服务地址是该协议的根地址，具体接口路径由协议决定 */
 export type ProviderConfig = {
@@ -13,6 +33,7 @@ export type ProviderConfig = {
   protocol: ApiProtocol
   apiKey: string
   model: string
+  reasoningControl: ReasoningControl
 }
 
 /** 各协议的默认地址：DeepSeek 的兼容接口与 OpenAI 兼容接口 */
@@ -32,13 +53,11 @@ export const DEFAULT_PROVIDER: ProviderConfig = {
   protocol: 'anthropic',
   apiKey: '',
   model: MODEL,
+  reasoningControl: 'auto',
 }
 
 /** 切换协议时的默认地址；用户改过的地址保持不动 */
 export const defaultBaseUrl = (protocol: ApiProtocol) => BASE_URLS[protocol]
-
-/** Hy4 Flash 的公开模型输出上限（TokenHub 模型列表）。 */
-export const HY4_FLASH_MAX_OUTPUT = 64 * 1024
 
 const isDeepseekEndpoint = ({ baseUrl, protocol }: ProviderConfig) => {
   const url = baseUrl.trim().replace(/\/+$/, '') || defaultBaseUrl(protocol)
@@ -49,15 +68,32 @@ const isDeepseekEndpoint = ({ baseUrl, protocol }: ProviderConfig) => {
 export const hasDeepseekExtensions = (provider: ProviderConfig) =>
   provider.protocol === 'anthropic' && isDeepseekEndpoint(provider)
 
-/** 只有明确支持开关的模型报文才覆盖服务端默认推理行为；代理需透传模型参数。 */
-export const thinkingMode = (provider: ProviderConfig) => {
-  if (isDeepseekEndpoint(provider)) {
-    return 'deepseek'
+export const reasoningProfile = (provider: ProviderConfig): ReasoningProfile | undefined => {
+  // 原生 Messages 保留原有扩展格式，手动模式用于其他服务或中转地址。
+  if (hasDeepseekExtensions(provider)) {
+    return { control: 'toggle', maxEffort: 'max' }
   }
-  return provider.model.trim() === 'hy4-flash' ? 'hy4' : undefined
+  const { baseUrl, protocol, reasoningControl, model } = provider
+  if (reasoningControl === 'service') {
+    return undefined
+  }
+  if (reasoningControl !== 'auto') {
+    return reasoningControl === 'effort-no-think'
+      ? { control: reasoningControl, effortMap: { low: 'high' } }
+      : { control: reasoningControl }
+  }
+  if (isDeepseekEndpoint(provider)) {
+    return { control: protocol === 'openai-responses' ? 'effort' : 'toggle', maxEffort: 'max' }
+  }
+  return inferReasoningProfile(model, protocol, baseUrl.trim())
 }
 
-/** 推理挡位的全部取值，三种协议一致，其余写法由服务端映射到这三档 */
+export const canToggleThinking = (provider: ProviderConfig): boolean => {
+  const control = reasoningProfile(provider)?.control
+  return control !== undefined && control !== 'effort-only'
+}
+
+/** 高级设置提供的推理挡位。 */
 export const REASONING_EFFORTS: readonly ReasoningEffort[] = ['low', 'high', 'max']
 
 /** 拼接接口地址，忽略服务地址末尾多余的斜杠 */
@@ -90,6 +126,8 @@ export const normalizeProvider = (value: unknown): ProviderConfig => {
     protocol,
     apiKey: asString(saved.apiKey),
     model: asString(saved.model) || DEFAULT_PROVIDER.model,
+    reasoningControl:
+      REASONING_CONTROLS[protocol].find((control) => control === saved.reasoningControl) ?? 'auto',
   }
 }
 

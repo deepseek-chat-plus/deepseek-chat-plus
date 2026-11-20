@@ -3,7 +3,7 @@ import { createId } from '../../utils/id.js'
 import { streamMessage } from '../api/client.js'
 import { extractFileIds, getFileErrorCode, isRetryableApiError } from '../api/errors.js'
 import { ApiError } from '../api/http.js'
-import { hasDeepseekExtensions, normalizeProvider, thinkingMode } from '../api/provider.js'
+import { canToggleThinking, hasDeepseekExtensions, normalizeProvider } from '../api/provider.js'
 import { searchQuery, searchWeb } from '../api/webSearch.js'
 import { cancelUpload, describeUploadError, uploadAttachment, useUploads } from '../attachments.js'
 import { parseTokenLimit, useSettings } from '../settings.js'
@@ -52,7 +52,7 @@ const defaultOptions = () => {
   const { thinking, search, searchApiKey, standaloneSearch } = useSettings.getState()
   return {
     model: provider.model,
-    thinking: thinking && Boolean(thinkingMode(provider)),
+    thinking: thinking && canToggleThinking(provider),
     search: hasDeepseekExtensions(provider)
       ? search
       : standaloneSearch && Boolean(searchApiKey.trim()),

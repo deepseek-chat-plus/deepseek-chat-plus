@@ -10,12 +10,12 @@ import {
   defaultBaseUrl,
   endpoint,
   hasDeepseekExtensions,
-  HY4_FLASH_MAX_OUTPUT,
   messageEndpoint,
-  thinkingMode,
+  reasoningProfile,
   type ChatRequest,
   type ProviderConfig,
 } from './provider.js'
+import { reasoningEffortFor } from './reasoning.js'
 import { readServerSentEvents, type ServerSentEvent } from './sse.js'
 import type {
   CreateMessageRequest,
@@ -55,14 +55,44 @@ const toMessageRequest = (chat: ChatRequest): CreateMessageRequest => ({
   ...(chat.title ? { title: { enabled: true } } : {}),
 })
 
-/** 通用 Messages 只回传可移植的消息块，不带 DeepSeek 元信息、文件 ID 或服务端工具。 */
-const toBasicMessageRequest = (provider: ProviderConfig, chat: ChatRequest) => {
-  const hy4 = thinkingMode(provider) === 'hy4'
-  const requestedLimit = chat.maxOutputTokens ?? 4096
-  const maxTokens = hy4 ? Math.min(requestedLimit, HY4_FLASH_MAX_OUTPUT) : requestedLimit
-  if (hy4 && chat.thinking && maxTokens <= 1024) {
-    throw new ApiError('protocol', { key: 'providerThinkingOutputLimit' })
+const THINKING_BUDGETS = { low: 2048, high: 8192, max: 32768 } as const
+const MIN_THINKING_BUDGET = 1024
+
+/** 在通用 Messages 报文中只下发服务明确支持的思考格式。 */
+const messageThinking = (provider: ProviderConfig, chat: ChatRequest, maxTokens: number) => {
+  const profile = reasoningProfile(provider)
+  if (!profile) {
+    return {}
   }
+  const effort = { output_config: { effort: reasoningEffortFor(profile, chat.reasoningEffort) } }
+  if (profile.control === 'effort-only') {
+    return effort
+  }
+  if (!chat.thinking) {
+    return { thinking: { type: 'disabled' } }
+  }
+  if (profile.control === 'adaptive') {
+    return {
+      thinking: { type: 'adaptive', ...(profile.summary ? { display: 'summarized' } : {}) },
+      ...(profile.maxEffort ? effort : {}),
+    }
+  }
+  if (profile.control === 'budget') {
+    if (maxTokens <= MIN_THINKING_BUDGET) {
+      throw new ApiError('protocol', { key: 'providerThinkingOutputLimit' })
+    }
+    const budget = Math.min(THINKING_BUDGETS[chat.reasoningEffort], maxTokens - 1)
+    return { thinking: { type: 'enabled', budget_tokens: budget } }
+  }
+  return { thinking: { type: 'enabled' }, ...(profile.maxEffort ? effort : {}) }
+}
+
+/** 通用 Messages 不带 DeepSeek 元信息、文件 ID 或服务端工具。 */
+const toBasicMessageRequest = (provider: ProviderConfig, chat: ChatRequest) => {
+  const maxTokens = Math.min(
+    chat.maxOutputTokens ?? 4096,
+    reasoningProfile(provider)?.maxOutput ?? Infinity
+  )
   const messages = chat.messages.flatMap<MessageParam>((message) => {
     if (message.role === 'latest_reminder') {
       return []
@@ -77,13 +107,7 @@ const toBasicMessageRequest = (provider: ProviderConfig, chat: ChatRequest) => {
     model: chat.model,
     max_tokens: maxTokens,
     messages,
-    ...(hy4
-      ? {
-          thinking: chat.thinking
-            ? { type: 'enabled', budget_tokens: Math.min(8192, maxTokens - 1) }
-            : { type: 'disabled' },
-        }
-      : {}),
+    ...messageThinking(provider, chat, maxTokens),
   }
 }
 

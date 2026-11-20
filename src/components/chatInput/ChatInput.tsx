@@ -8,7 +8,7 @@ import {
   IconThinkOutline14,
 } from '../base/icons.js'
 import { updateSettings, useSettings } from '../../services/settings.js'
-import { hasDeepseekExtensions, thinkingMode } from '../../services/api/provider.js'
+import { canToggleThinking, hasDeepseekExtensions } from '../../services/api/provider.js'
 import { useIsMobile } from '../../app/viewport.js'
 import { sendMessage, stopReply, useChatStore } from '../../services/chat/store.js'
 import {
@@ -51,7 +51,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
     (state) => sessionId !== null && Object.hasOwn(state.streaming, sessionId)
   )
   const thinking = useSettings((state) => state.thinking)
-  const canThink = useSettings((state) => Boolean(thinkingMode(state.provider)))
+  const canThink = useSettings((state) => canToggleThinking(state.provider))
   const extended = useSettings((state) => hasDeepseekExtensions(state.provider))
   const searchKey = extended ? 'search' : 'standaloneSearch'
   const search = useSettings((state) => state[searchKey])
