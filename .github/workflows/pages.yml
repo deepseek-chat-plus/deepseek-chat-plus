@@ -1,5 +1,7 @@
 name: Deploy GitHub Pages
 
+# 同一份提交推送到源码仓库与站点仓库（<org>.github.io）：两边都跑类型、Lint 与构建校验，
+# 只有站点仓库发布页面，因此访问地址是域名根目录而不是子路径。
 on:
   push:
     branches: [main]
@@ -43,18 +45,22 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      # 站点仓库的 Pages 由域名根目录提供，源码仓库不重复发布子路径站点
       - name: Configure GitHub Pages
+        if: github.repository == 'deepseek-chat-plus/deepseek-chat-plus.github.io'
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
       - name: Build
         run: pnpm build
 
       - name: Upload site
+        if: github.repository == 'deepseek-chat-plus/deepseek-chat-plus.github.io'
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: dist
 
   deploy:
+    if: github.repository == 'deepseek-chat-plus/deepseek-chat-plus.github.io'
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
