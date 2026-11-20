@@ -31,7 +31,9 @@ The output is written to `dist/`. Deploy it to a static web server or open `dist
 
 ### Static hosting
 
-`dist/` is plain HTML, CSS, and JavaScript with no server-side rendering, routing, or API proxy, so any static host works, including GitHub Pages. Asset URLs are relative (`publicPath: 'auto'`), so the same build runs from a domain root or from a subdirectory such as `https://deepseek-chat-plus.github.io/deepseek-chat-plus/`. The included workflow [pages.yml](.github/workflows/pages.yml) builds and publishes to GitHub Pages on every push to `main`; enable Pages with "GitHub Actions" as the source.
+The site is published at [deepseek-chat-plus.github.io](https://deepseek-chat-plus.github.io/) by the `deepseek-chat-plus.github.io` repository, which hosts the same workflow; the URL needs no path.
+
+`dist/` is plain HTML, CSS, and JavaScript with no server-side rendering, routing, or API proxy, so any static host works, including GitHub Pages. Asset URLs are relative (`publicPath: 'auto'`), so the same build runs from a domain root or from a subdirectory. The included workflow [pages.yml](.github/workflows/pages.yml) builds and publishes to GitHub Pages on every push to `main`; enable Pages with "GitHub Actions" as the source.
 
 Because the browser talks to the configured service directly, the service must allow cross-origin requests from the page origin. DeepSeek does; for other providers, check their CORS policy.
 
@@ -43,6 +45,7 @@ Because the browser talks to the configured service directly, the service must a
 - Markdown, syntax highlighting, KaTeX math, and Mermaid diagrams.
 - Simplified Chinese and English, light and dark themes, mobile layouts, location settings, and chat history import and export.
 - Settings → Model service configures the base URL, protocol, model, and API Key, and tests the connection with one minimal request.
+- Settings → Advanced sets the context length and max output in tokens (`128K` by default, blank for no limit) and the deep-thinking reasoning effort (Low, High, or Max).
 
 ## Model services
 

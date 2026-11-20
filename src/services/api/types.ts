@@ -170,13 +170,20 @@ export type DeepseekReadUrlTool = {
   name: 'deepseek_read_url'
 }
 
+/** 深度思考的推理挡位；三种协议的取值范围一致，其余写法由服务端映射到这三档 */
+export type ReasoningEffort = 'low' | 'high' | 'max'
+
 export type CreateMessageRequest = {
   model: string
   system: string
   messages: MessageParam[]
   thinking: { type: 'enabled' | 'disabled' }
+  /** 推理挡位；显式开关的 thinking 优先 */
+  output_config: { effort: ReasoningEffort }
   tools: (DeepseekWebSearchTool | DeepseekReadUrlTool)[]
   safety_check: { level: 'high' }
+  /** 输出上限（Token，含思考）；不发送时由服务端取默认值 */
+  max_tokens?: number
   title?: { enabled: boolean }
 }
 

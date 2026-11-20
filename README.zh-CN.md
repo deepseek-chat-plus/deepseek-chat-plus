@@ -31,7 +31,9 @@ pnpm build
 
 ### 静态托管
 
-`dist/` 只有 HTML、CSS 与 JavaScript，没有服务端渲染、前端路由或接口代理，因此任意静态托管都能部署，GitHub Pages 同样适用。资源地址是相对路径（`publicPath: 'auto'`），同一份产物既能放在域名根目录，也能放在 `https://deepseek-chat-plus.github.io/deepseek-chat-plus/` 这样的子目录下。仓库自带 [pages.yml](.github/workflows/pages.yml)，推送到 `main` 即构建并发布；在仓库设置里把 Pages 的来源选为「GitHub Actions」即可。
+站点由 `deepseek-chat-plus.github.io` 仓库发布在 [deepseek-chat-plus.github.io](https://deepseek-chat-plus.github.io/)，该仓库承载同一份工作流，地址不带路径。
+
+`dist/` 只有 HTML、CSS 与 JavaScript，没有服务端渲染、前端路由或接口代理，因此任意静态托管都能部署，GitHub Pages 同样适用。资源地址是相对路径（`publicPath: 'auto'`），同一份产物既能放在域名根目录，也能放在子目录下。仓库自带 [pages.yml](.github/workflows/pages.yml)，推送到 `main` 即构建并发布；在仓库设置里把 Pages 的来源选为「GitHub Actions」即可。
 
 由于浏览器直接请求配置的 API 服务，服务端需允许页面来源的跨域请求。DeepSeek 已支持；接入其他服务商时请先确认其 CORS 策略。
 
@@ -43,6 +45,7 @@ pnpm build
 - Markdown、代码高亮、KaTeX 公式和 Mermaid 图表。
 - 简体中文与英文、浅色与深色主题、移动端布局、位置设置、历史导入导出。
 - 设置 → 模型服务 配置服务地址、接口协议、模型与 API Key，并用一次最小请求测试连通性。
+- 设置 → 高级设置 配置上下文长度与最大输出（默认 `128K`，留空表示不限制），以及深度思考的推理挡位（Low、High、Max）。
 
 ## 模型服务
 

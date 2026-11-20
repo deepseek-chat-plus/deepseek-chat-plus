@@ -2,7 +2,7 @@
  * 模型服务配置、地址规则与能力声明。本模块只描述数据与地址，不发起请求，
  * 供设置层与各协议适配器共用，避免循环引用。
  */
-import type { MessageParam } from './types.js'
+import type { MessageParam, ReasoningEffort } from './types.js'
 
 /** 与模型服务通信的协议；anthropic 为 DeepSeek 兼容的 Messages 接口 */
 export type ApiProtocol = 'anthropic' | 'openai-chat' | 'openai-responses'
@@ -39,6 +39,9 @@ export const defaultBaseUrl = (protocol: ApiProtocol) => BASE_URLS[protocol]
 
 /** 联网搜索、附件、语音与自动标题等扩展能力只在 DeepSeek 兼容协议下提供 */
 export const hasDeepseekExtensions = (protocol: ApiProtocol) => protocol === 'anthropic'
+
+/** 推理挡位的全部取值，三种协议一致，其余写法由服务端映射到这三档 */
+export const REASONING_EFFORTS: readonly ReasoningEffort[] = ['low', 'high', 'max']
 
 /** 拼接接口地址，忽略服务地址末尾多余的斜杠 */
 export const endpoint = (baseUrl: string, path: string) => `${baseUrl.replace(/\/+$/, '')}${path}`
@@ -85,4 +88,8 @@ export type ChatRequest = {
   search: boolean
   /** 顺带生成会话标题；仅 DeepSeek 兼容协议支持 */
   title: boolean
+  /** 输出上限（Token）；为空表示不限制，由服务端取默认值 */
+  maxOutputTokens?: number
+  /** 推理挡位；深度思考关闭时服务端忽略 */
+  reasoningEffort: ReasoningEffort
 }

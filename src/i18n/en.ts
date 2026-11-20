@@ -122,6 +122,17 @@ export const en = {
   providerTestFailed: 'Connection failed: {message}',
   providerUploadUnsupported:
     'The current model service does not support attachments. Switch to the DeepSeek service and try again.',
+  settingsContextLimit: 'Context length',
+  settingsContextLimitDescription:
+    'The oldest turns are dropped beyond this limit. Accepts 128K or 0.5M; leave blank for no limit.',
+  settingsMaxOutput: 'Max output',
+  settingsMaxOutputDescription: 'Token limit for a single reply. Leave blank for no limit.',
+  settingsTokenLimitPlaceholder: 'e.g. 128K, blank for no limit',
+  settingsTokenLimitInvalid: 'Enter a number or a multiple such as 128K or 0.5M.',
+  settingsReasoningEffort: 'Reasoning effort',
+  settingsReasoningEffortDescription:
+    'How hard the model thinks; higher levels are slower and more thorough.',
+  settingDialogAsideAdvancedOptionLabel: 'Advanced',
   apiKeyEdit: 'Edit API Key',
   apiKeyPlaceholder: 'Enter API Key',
   confirm: 'Confirm',

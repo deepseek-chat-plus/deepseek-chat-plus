@@ -34,14 +34,16 @@ const serverTools = (search: boolean): CreateMessageRequest['tools'] => {
   return tools
 }
 
-/** DeepSeek 兼容协议：扩展能力全开，报文带思考、搜索、标题与安全审核 */
+/** DeepSeek 兼容协议：扩展能力全开，报文带思考、挡位、搜索、标题与安全审核 */
 const toMessageRequest = (chat: ChatRequest): CreateMessageRequest => ({
   model: chat.model,
   system: chat.system ?? '',
   messages: chat.messages,
   thinking: { type: chat.thinking ? 'enabled' : 'disabled' },
+  output_config: { effort: chat.reasoningEffort },
   tools: serverTools(chat.search),
   safety_check: SAFETY_CHECK,
+  ...(chat.maxOutputTokens ? { max_tokens: chat.maxOutputTokens } : {}),
   ...(chat.title ? { title: { enabled: true } } : {}),
 })
 

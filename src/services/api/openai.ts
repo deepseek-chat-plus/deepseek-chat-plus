@@ -33,19 +33,28 @@ const toMessages = (messages: MessageParam[]): OpenAIMessage[] =>
     return content.trim() ? [{ role: message.role, content }] : []
   })
 
-/** 生成请求报文；两种协议的系统提示词位置不同 */
+/**
+ * 生成请求报文：系统提示词、推理挡位与输出上限在两种协议里的位置不同。
+ * 挡位是标准参数，与 DeepSeek 兼容协议一致地始终下发，不支持推理的模型会忽略；
+ * 输出上限留空时不发送，交给服务端取默认值。
+ */
 export const toOpenAIBody = (protocol: ApiProtocol, chat: ChatRequest) => {
   const messages = toMessages(chat.messages)
+  const { maxOutputTokens, reasoningEffort } = chat
   if (protocol === 'openai-responses') {
     return {
       model: chat.model,
       ...(chat.system ? { instructions: chat.system } : {}),
       input: messages,
+      reasoning: { effort: reasoningEffort },
+      ...(maxOutputTokens ? { max_output_tokens: maxOutputTokens } : {}),
     }
   }
   return {
     model: chat.model,
     messages: chat.system ? [{ role: 'system', content: chat.system }, ...messages] : messages,
+    reasoning_effort: reasoningEffort,
+    ...(maxOutputTokens ? { max_tokens: maxOutputTokens } : {}),
   }
 }
 

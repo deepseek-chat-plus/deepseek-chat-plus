@@ -282,14 +282,13 @@
   }
 }
 
-/* 模型服务：输入框与选择器统一占满右侧剩余宽度，避免长地址挤压标签 */
-.providerCell .text {
+/* 右侧是输入框或选择器的设置项：控件占满剩余宽度，避免长地址挤压标签 */
+.wideCell .text {
   flex: 1 1 auto;
   padding-right: 16px;
 }
 
-.providerField,
-.providerSelect {
+.fieldControl {
   width: 260px;
   max-width: 100%;
 }
@@ -382,17 +381,16 @@
     height: 20px;
   }
 
-  .providerCell .text {
+  .wideCell .text {
     flex-basis: 100%;
     padding-right: 0;
   }
 
-  .providerField,
-  .providerSelect {
+  .fieldControl {
     width: 100%;
   }
 
-  .providerCell {
+  .wideCell {
     flex-wrap: wrap;
     gap: 12px;
   }

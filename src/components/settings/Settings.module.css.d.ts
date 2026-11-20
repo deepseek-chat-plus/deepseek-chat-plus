@@ -26,9 +26,8 @@ declare const styles: {
   readonly "fieldMask": string;
   readonly "divider": string;
   readonly "confirm": string;
-  readonly "providerCell": string;
-  readonly "providerField": string;
-  readonly "providerSelect": string;
+  readonly "wideCell": string;
+  readonly "fieldControl": string;
   readonly "cellButton": string;
   readonly "mobileConfirm": string;
   readonly "importConfirm": string;

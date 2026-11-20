@@ -1,4 +1,4 @@
-import clsx from 'clsx'
+﻿import clsx from 'clsx'
 import { useRef, useState } from 'react'
 import { IconEditOutline16 } from '../base/icons.js'
 import { Button } from '../base/Button.js'
@@ -26,7 +26,7 @@ const protocols: { value: ApiProtocol; label: TranslationKey }[] = [
 ]
 
 /** 输入框与已保存的 Key 共用同一个胶囊容器，保持设置项右对齐 */
-const providerField = clsx(styles.field, styles.providerField)
+const wideField = clsx(styles.field, styles.fieldControl)
 
 /** 服务端原文可能很长，展示时截断 */
 const ERROR_TEXT_LIMIT = 160
@@ -126,9 +126,9 @@ export const ProviderSetting = () => {
       <SettingCell
         label={t('providerBaseUrl')}
         status={null}
-        className={styles.providerCell}
+        className={styles.wideCell}
         action={
-          <div className={providerField}>
+          <div className={wideField}>
             <input
               type="text"
               placeholder={t('providerBaseUrlPlaceholder')}
@@ -143,11 +143,11 @@ export const ProviderSetting = () => {
       <SettingCell
         label={t('providerProtocol')}
         status={null}
-        className={styles.providerCell}
+        className={styles.wideCell}
         action={
           <Select
             ariaLabel={t('providerProtocol')}
-            className={styles.providerSelect}
+            className={styles.fieldControl}
             value={provider.protocol}
             options={protocols.map((item) => ({ value: item.value, label: t(item.label) }))}
             onChange={(protocol) =>
@@ -165,9 +165,9 @@ export const ProviderSetting = () => {
       <SettingCell
         label={t('providerModel')}
         status={null}
-        className={styles.providerCell}
+        className={styles.wideCell}
         action={
-          <div className={providerField}>
+          <div className={wideField}>
             <input
               type="text"
               placeholder={t('providerModelPlaceholder')}
@@ -182,10 +182,10 @@ export const ProviderSetting = () => {
       <SettingCell
         label={t('providerApiKey')}
         status={null}
-        className={styles.providerCell}
+        className={styles.wideCell}
         action={
           provider.apiKey && !key.editing ? (
-            <div className={clsx(styles.fieldSaved, styles.providerField)}>
+            <div className={clsx(styles.fieldSaved, styles.fieldControl)}>
               <span className={styles.fieldMask}>{'*'.repeat(provider.apiKey.length)}</span>
               <IconButton
                 tone="primary"
@@ -195,7 +195,7 @@ export const ProviderSetting = () => {
               />
             </div>
           ) : (
-            <div className={providerField}>
+            <div className={wideField}>
               <input
                 type="password"
                 placeholder={t('apiKeyPlaceholder')}

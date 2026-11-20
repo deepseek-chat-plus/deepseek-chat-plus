@@ -296,17 +296,70 @@ export const getContextRounds = (history: Message[]): [UserMessage, AssistantMes
   return rounds
 }
 
+/** 中日韩字符与全角标点，逐字占比更高 */
+const CJK = /[\u2e80-\u9fff\uf900-\ufaff\uff00-\uffef]/g
+
+/**
+ * 粗略估算 Token：中日韩字符按 0.6、其余按 0.3 个字符一个 Token。
+ * 只用于按上下文上限裁剪历史，不需要与真实分词一致。
+ */
+const estimateTokens = (text: string) =>
+  Math.ceil((text.length + (text.match(CJK)?.length ?? 0)) * 0.3)
+
+/** 一条请求消息的体积：附件与工具块没有文字，按序列化后的长度一并计入 */
+const countTokens = (message: MessageParam) =>
+  estimateTokens(
+    typeof message.content === 'string' ? message.content : JSON.stringify(message.content)
+  )
+
+/** 一轮历史：提醒快照与「提问 + 回答」成对，裁剪时整轮丢弃 */
+type Round = { reminder?: string; messages: MessageParam[] }
+
+const roundTokens = (round: Round) =>
+  round.messages.reduce((sum, message) => sum + countTokens(message), 0)
+
+/** 从最早的一轮开始丢弃，直到估算的 Token 不超过上限；本轮提问与续写前缀不参与裁剪 */
+const fitRounds = (rounds: Round[], reserved: number, limit: number) => {
+  let total = rounds.reduce((sum, round) => sum + roundTokens(round), reserved)
+  let start = 0
+  while (total > limit && start < rounds.length) {
+    total -= roundTokens(rounds[start])
+    start += 1
+  }
+  return rounds.slice(start)
+}
+
 /**
  * 把会话转成请求的 messages：只保留「提问 + 有回答的回复」成对的轮次，最后接上本轮提问。
  * 失败或没有回答的轮次不进上下文。续写时末尾再带上本轮 assistant。
+ * 给了 contextLimit 时按估算的 Token 从最早的一轮开始丢弃，本轮提问始终保留。
  */
 export const toRequestMessages = (
   history: Message[],
   question: UserMessage,
   prefix?: AssistantMessage,
   thinking = prefix?.thinking ?? false,
-  latestReminder?: string
+  latestReminder?: string,
+  contextLimit?: number
 ): MessageParam[] => {
+  const rounds: Round[] = getContextRounds(history).flatMap(([user, reply]) =>
+    // 历史提问没有文字、附件也都没有 serverId 时，提问为空，连同回答一起省略。
+    !user.content && toFileBlocks(user.files).length === 0
+      ? []
+      : [{ reminder: reply.latestReminder, messages: [toUserParam(user), toAssistantParam(reply)] }]
+  )
+  const questionParam = toUserParam(question)
+  // 续写前缀是本轮回答的开头，始终留在上下文里，裁剪只针对历史轮次。
+  const prefixParam = prefix?.prefix ? toAssistantParam(prefix, true, thinking) : null
+  // 没有非空白正文或有效思考时直接重发原问题，避免服务端拒绝空 Prefill。
+  const keptPrefix = prefixParam?.content.some(
+    (block) =>
+      (block.type === 'text' && block.text.trim()) ||
+      (block.type === 'thinking' && block.thinking.trim())
+  )
+    ? prefixParam
+    : null
+  const reserved = countTokens(questionParam) + (keptPrefix ? countTokens(keptPrefix) : 0)
   const messages: MessageParam[] = []
   let previousReminder: string | undefined
   const appendReminder = (reminder: string | undefined) => {
@@ -316,28 +369,14 @@ export const toRequestMessages = (
       previousReminder = reminder
     }
   }
-  for (const [user, reply] of getContextRounds(history)) {
-    // 历史提问没有文字、附件也都没有 serverId 时，提问为空，连同回答一起省略。
-    if (!user.content && toFileBlocks(user.files).length === 0) {
-      continue
-    }
-    appendReminder(reply.latestReminder)
-    messages.push(toUserParam(user), toAssistantParam(reply))
+  for (const round of contextLimit ? fitRounds(rounds, reserved, contextLimit) : rounds) {
+    appendReminder(round.reminder)
+    messages.push(...round.messages)
   }
   appendReminder(latestReminder)
-  messages.push(toUserParam(question))
-  if (prefix?.prefix) {
-    const assistant = toAssistantParam(prefix, true, thinking)
-    // 没有非空白正文或有效思考时直接重发原问题，避免服务端拒绝空 Prefill。
-    if (
-      assistant.content.some(
-        (block) =>
-          (block.type === 'text' && block.text.trim()) ||
-          (block.type === 'thinking' && block.thinking.trim())
-      )
-    ) {
-      messages.push(assistant)
-    }
+  messages.push(questionParam)
+  if (keptPrefix) {
+    messages.push(keptPrefix)
   }
   return messages
 }

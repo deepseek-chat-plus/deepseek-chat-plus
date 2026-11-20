@@ -1,11 +1,11 @@
-import { create } from 'zustand'
+﻿import { create } from 'zustand'
 import { createId } from '../../utils/id.js'
 import { streamMessage } from '../api/client.js'
 import { extractFileIds, getFileErrorCode, isRetryableApiError } from '../api/errors.js'
 import { ApiError } from '../api/http.js'
 import { hasDeepseekExtensions, normalizeProvider } from '../api/provider.js'
 import { cancelUpload, describeUploadError, uploadAttachment, useUploads } from '../attachments.js'
-import { useSettings } from '../settings.js'
+import { parseTokenLimit, useSettings } from '../settings.js'
 import { appendBranch, getVisibleMessages, normalizeSession, selectVersion } from './branches.js'
 import * as db from './db.js'
 import {
@@ -985,6 +985,7 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
       try {
         const prepared = await prepareFiles(sessionId, request, controller.signal)
         preparing = false
+        const settings = useSettings.getState()
         const provider = currentProvider()
         const extended = hasDeepseekExtensions(provider.protocol)
         // 第三方协议不会返回标题，用提问首行兜底，避免列表一直显示「新对话」。
@@ -996,7 +997,7 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
           ? undefined
           : prepared.prefix
             ? prepared.prefix.latestReminder
-            : createLatestReminder(useSettings.getState())
+            : createLatestReminder(settings)
         reply = { ...reply, latestReminder }
         updateReply(sessionId, reply)
         persist(sessionId)
@@ -1005,7 +1006,8 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
           prepared.question,
           prepared.prefix,
           initial.thinking ?? false,
-          latestReminder
+          latestReminder,
+          parseTokenLimit(settings.contextLimit)
         )
         const events = streamMessage(
           provider,
@@ -1016,6 +1018,8 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
             thinking: initial.thinking ?? false,
             search: initial.search ?? false,
             title: titleRequests.has(controller),
+            maxOutputTokens: parseTokenLimit(settings.outputLimit),
+            reasoningEffort: settings.reasoningEffort,
           },
           controller.signal
         )

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import { normalizeProvider, type ProviderConfig } from './api/provider.js'
+import { REASONING_EFFORTS, normalizeProvider, type ProviderConfig } from './api/provider.js'
+import type { ReasoningEffort } from './api/types.js'
 import type { TtsVoice } from './api/speech.js'
 import { normalizeLocation, type UserLocation } from './location.js'
 
@@ -8,7 +9,10 @@ export type Locale = 'zh-CN' | 'en-US'
 /** 主题偏好；默认跟随系统 */
 export type ThemePreference = 'light' | 'dark' | 'system'
 
-/** 本机设置，存 localStorage：模型服务、语言、主题、位置、朗读音色、深度思考与智能搜索开关、侧边栏收起状态 */
+/**
+ * 本机设置，存 localStorage：模型服务、语言、主题、位置、朗读音色、
+ * 深度思考与智能搜索开关、上下文与输出上限、推理挡位、侧边栏收起状态
+ */
 type Settings = {
   provider: ProviderConfig
   locale: Locale
@@ -17,6 +21,11 @@ type Settings = {
   ttsVoice: TtsVoice
   thinking: boolean
   search: boolean
+  /** 上下文上限按用户输入的写法保存，如 128K；超出后整轮丢弃最早的上下文 */
+  contextLimit: string
+  /** 输出上限按用户输入的写法保存，如 128K；留空表示不限制 */
+  outputLimit: string
+  reasoningEffort: ReasoningEffort
   siderCollapsed: boolean
 }
 
@@ -28,7 +37,25 @@ const KEYS: Record<keyof Settings, string> = {
   ttsVoice: 'chat-demo:tts-voice',
   thinking: 'chat-demo:thinking',
   search: 'chat-demo:search',
+  contextLimit: 'chat-demo:context-limit',
+  outputLimit: 'chat-demo:output-limit',
+  reasoningEffort: 'chat-demo:reasoning-effort',
   siderCollapsed: 'chat-demo:sider-collapsed',
+}
+
+/** 上下文与输出上限的默认值，与模型支持的窗口一致 */
+const DEFAULT_LIMIT = '128K'
+
+/** Token 上限的倍数写法，如 128K、0.5M */
+const TOKEN_LIMIT = /^(\d+(?:\.\d+)?)\s*([km]?)$/
+
+const TOKEN_UNITS: Record<string, number> = { '': 1, k: 1024, m: 1024 * 1024 }
+
+/** 解析 Token 上限：支持倍数写法与纯数字；留空、0 与非法值返回 undefined，表示不限制 */
+export const parseTokenLimit = (value: string): number | undefined => {
+  const match = TOKEN_LIMIT.exec(value.trim().toLowerCase())
+  const tokens = match ? Math.round(Number(match[1]) * TOKEN_UNITS[match[2]]) : 0
+  return tokens > 0 ? tokens : undefined
 }
 
 const read = (key: string) => {
@@ -89,6 +116,12 @@ const initialThemePreference = (): ThemePreference => {
 /** 未保存过时使用服务端默认音色 stella（海星） */
 const initialTtsVoice = (): TtsVoice => (read(KEYS.ttsVoice) === 'tide' ? 'tide' : 'stella')
 
+/** 未保存过时取模型上限；清空后保存的空字符串保持不变，表示不限制 */
+const initialLimit = (key: string): string => read(key) ?? DEFAULT_LIMIT
+
+const initialReasoningEffort = (): ReasoningEffort =>
+  REASONING_EFFORTS.find((effort) => effort === read(KEYS.reasoningEffort)) ?? 'high'
+
 const initialProvider = (): ProviderConfig => {
   try {
     return normalizeProvider(JSON.parse(read(KEYS.provider) ?? 'null'))
@@ -105,6 +138,9 @@ export const useSettings = create<Settings>(() => ({
   ttsVoice: initialTtsVoice(),
   thinking: read(KEYS.thinking) === 'true',
   search: read(KEYS.search) === 'true',
+  contextLimit: initialLimit(KEYS.contextLimit),
+  outputLimit: initialLimit(KEYS.outputLimit),
+  reasoningEffort: initialReasoningEffort(),
   siderCollapsed: read(KEYS.siderCollapsed) === 'true',
 }))
 
