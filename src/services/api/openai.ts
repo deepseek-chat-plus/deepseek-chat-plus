@@ -5,7 +5,13 @@
  * 两者都翻译成内部的 Messages 事件流，上层无需关心协议差异。
  */
 import { ApiError } from './http.js'
-import type { ApiProtocol, ChatRequest } from './provider.js'
+import {
+  HY4_FLASH_MAX_OUTPUT,
+  thinkingMode,
+  type ApiProtocol,
+  type ChatRequest,
+  type ProviderConfig,
+} from './provider.js'
 import type { ServerSentEvent } from './sse.js'
 import type { MessageParam, MessageStreamEvent, MessageUsage, StopReason } from './types.js'
 
@@ -33,27 +39,29 @@ const toMessages = (messages: MessageParam[]): OpenAIMessage[] =>
     return content.trim() ? [{ role: message.role, content }] : []
   })
 
-/**
- * 生成请求报文：系统提示词、推理挡位与输出上限在两种协议里的位置不同。
- * 挡位是标准参数，与 DeepSeek 兼容协议一致地始终下发，不支持推理的模型会忽略；
- * 输出上限留空时不发送，交给服务端取默认值。
- */
-export const toOpenAIBody = (protocol: ApiProtocol, chat: ChatRequest) => {
+/** 已知开关格式才显式开关推理，其他服务保留原有的推理挡位参数。 */
+export const toOpenAIBody = (provider: ProviderConfig, chat: ChatRequest) => {
   const messages = toMessages(chat.messages)
-  const { maxOutputTokens, reasoningEffort } = chat
-  if (protocol === 'openai-responses') {
+  const mode = thinkingMode(provider)
+  const effort = mode === 'hy4' ? 'high' : chat.reasoningEffort
+  const maxOutputTokens =
+    mode === 'hy4' && chat.maxOutputTokens
+      ? Math.min(chat.maxOutputTokens, HY4_FLASH_MAX_OUTPUT)
+      : chat.maxOutputTokens
+  if (provider.protocol === 'openai-responses') {
     return {
       model: chat.model,
       ...(chat.system ? { instructions: chat.system } : {}),
       input: messages,
-      reasoning: { effort: reasoningEffort },
+      reasoning: { effort: mode && !chat.thinking ? 'none' : effort },
       ...(maxOutputTokens ? { max_output_tokens: maxOutputTokens } : {}),
     }
   }
   return {
     model: chat.model,
     messages: chat.system ? [{ role: 'system', content: chat.system }, ...messages] : messages,
-    reasoning_effort: reasoningEffort,
+    ...(mode ? { thinking: { type: chat.thinking ? 'enabled' : 'disabled' } } : {}),
+    ...(mode !== 'hy4' || chat.thinking ? { reasoning_effort: effort } : {}),
     ...(maxOutputTokens ? { max_tokens: maxOutputTokens } : {}),
   }
 }

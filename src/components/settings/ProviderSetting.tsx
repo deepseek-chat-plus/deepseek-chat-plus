@@ -1,4 +1,4 @@
-﻿import clsx from 'clsx'
+import clsx from 'clsx'
 import { useRef, useState } from 'react'
 import { IconEditOutline16 } from '../base/icons.js'
 import { Button } from '../base/Button.js'
@@ -10,6 +10,7 @@ import { classifyApiError } from '../../services/api/errors.js'
 import { ApiError } from '../../services/api/http.js'
 import {
   defaultBaseUrl,
+  hasDeepseekExtensions,
   normalizeProvider,
   type ApiProtocol,
   type ProviderConfig,
@@ -114,6 +115,7 @@ export const ProviderSetting = () => {
   const t = useTranslate()
   const isMobile = useIsMobile()
   const provider = useSettings((state) => state.provider)
+  const searchApiKey = useSettings((state) => state.searchApiKey)
   const test = useConnectionTest(provider)
   const key = useProviderKey(provider.apiKey, test.reset)
   const update = (patch: Partial<ProviderConfig>) => {
@@ -251,6 +253,34 @@ export const ProviderSetting = () => {
           </Button>
         }
       />
+      {!hasDeepseekExtensions(provider) ? (
+        <SettingCell
+          label={t('providerSearchApiKey')}
+          description={t('providerSearchApiKeyDescription')}
+          status={null}
+          className={styles.wideCell}
+          action={
+            <div className={wideField}>
+              <input
+                type="password"
+                aria-label={t('providerSearchApiKey')}
+                placeholder={t('providerSearchApiKeyPlaceholder')}
+                autoComplete="off"
+                spellCheck={false}
+                value={searchApiKey}
+                onChange={(event) => {
+                  const value = event.target.value
+                  updateSettings(
+                    value.trim()
+                      ? { searchApiKey: value }
+                      : { searchApiKey: '', standaloneSearch: false }
+                  )
+                }}
+              />
+            </div>
+          }
+        />
+      ) : null}
       {isMobile && key.showInput && key.value.trim() ? (
         <button
           type="button"

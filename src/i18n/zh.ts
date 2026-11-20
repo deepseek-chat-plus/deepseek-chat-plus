@@ -155,8 +155,18 @@ export const zh = {
   uploadFileStatusFailed: '上传失败',
   uploadRetry: '{message}，点击重试',
   chatInputPlaceholderChat: '请输入消息',
-  providerChatToggleUnsupported:
-    '此开关仅适用于支持 DeepSeek 扩展的 Anthropic Messages 协议，可在「设置 → 模型服务」切换。',
+  providerThinkingUnsupported: '当前模型服务未接入深度思考开关，可在高级设置中调整推理挡位。',
+  providerThinkingOutputLimit: '开启 Hy4 Flash 的深度思考时，最大输出须大于 1024 Token。',
+  providerSearchUnavailable:
+    '当前连接未接入原生搜索，可在「设置 → 模型服务」配置独立网页搜索 Key。',
+  providerStandaloneSearchTooltip: '发送前用 DeepSeek 搜索本轮问题，再把参考资料交给当前模型',
+  providerSearchApiKey: '独立网页搜索 Key',
+  providerSearchApiKeyPlaceholder: 'DeepSeek API Key（可选）',
+  providerSearchApiKeyDescription:
+    '仅在打开智能搜索后，把本轮问题的前 128 个字符发送给 DeepSeek Search；不发送历史或附件。搜索按次计费，清空 Key 可停用。',
+  standaloneSearchFailed: '独立网页搜索失败，尚未发送模型请求。请检查网络或关闭智能搜索后重试。',
+  standaloneSearchFailedStatus:
+    '独立网页搜索失败（HTTP {status}），尚未发送模型请求。请检查搜索 Key、额度，或关闭智能搜索后重试。',
   deactivatedThinkTooltip: '先思考后回答，解决推理问题',
   thinkingSwitch: '深度思考',
   deactivatedSearchTooltip: '按需搜索网页',

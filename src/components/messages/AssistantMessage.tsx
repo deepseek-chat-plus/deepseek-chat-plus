@@ -48,7 +48,7 @@ export const AssistantMessage = memo(function AssistantMessage({
   const t = useTranslate()
   const view = useReplyView(message, streaming)
   // 充值与朗读只对 DeepSeek 服务有效，其他模型服务下不提供入口
-  const extended = hasDeepseekExtensions(useSettings((state) => state.provider.protocol))
+  const extended = useSettings((state) => hasDeepseekExtensions(state.provider))
   const panelEntry = useSearchPanel((state) => state.entry)
   const notice = streaming ? null : describeReply(message)
   // 安全拒绝：已下发的思考与正文按协议丢弃，只显示模板答复。

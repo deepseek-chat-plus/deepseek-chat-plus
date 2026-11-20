@@ -21,6 +21,10 @@ type Settings = {
   ttsVoice: TtsVoice
   thinking: boolean
   search: boolean
+  /** 可选的独立网页搜索凭据，不与模型 API Key 混用。 */
+  searchApiKey: string
+  /** 独立搜索须单独打开，原生搜索偏好不会自动触发独立 API 调用。 */
+  standaloneSearch: boolean
   /** 上下文上限按用户输入的写法保存，如 128K；超出后整轮丢弃最早的上下文 */
   contextLimit: string
   /** 输出上限按用户输入的写法保存，如 128K；留空表示不限制 */
@@ -37,6 +41,8 @@ const KEYS: Record<keyof Settings, string> = {
   ttsVoice: 'chat-demo:tts-voice',
   thinking: 'chat-demo:thinking',
   search: 'chat-demo:search',
+  searchApiKey: 'chat-demo:search-api-key',
+  standaloneSearch: 'chat-demo:standalone-search',
   contextLimit: 'chat-demo:context-limit',
   outputLimit: 'chat-demo:output-limit',
   reasoningEffort: 'chat-demo:reasoning-effort',
@@ -138,6 +144,8 @@ export const useSettings = create<Settings>(() => ({
   ttsVoice: initialTtsVoice(),
   thinking: read(KEYS.thinking) === 'true',
   search: read(KEYS.search) === 'true',
+  searchApiKey: read(KEYS.searchApiKey) ?? '',
+  standaloneSearch: read(KEYS.standaloneSearch) === 'true',
   contextLimit: initialLimit(KEYS.contextLimit),
   outputLimit: initialLimit(KEYS.outputLimit),
   reasoningEffort: initialReasoningEffort(),

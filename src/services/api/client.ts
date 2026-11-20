@@ -10,12 +10,20 @@ import {
   defaultBaseUrl,
   endpoint,
   hasDeepseekExtensions,
+  HY4_FLASH_MAX_OUTPUT,
   messageEndpoint,
+  thinkingMode,
   type ChatRequest,
   type ProviderConfig,
 } from './provider.js'
 import { readServerSentEvents, type ServerSentEvent } from './sse.js'
-import type { CreateMessageRequest, FileObject, FilePurpose, MessageStreamEvent } from './types.js'
+import type {
+  CreateMessageRequest,
+  FileObject,
+  FilePurpose,
+  MessageParam,
+  MessageStreamEvent,
+} from './types.js'
 
 /** 引用 Files API 上传的附件时必须携带 */
 const FILES_BETA = 'files-api-2025-04-14'
@@ -47,6 +55,38 @@ const toMessageRequest = (chat: ChatRequest): CreateMessageRequest => ({
   ...(chat.title ? { title: { enabled: true } } : {}),
 })
 
+/** 通用 Messages 只回传可移植的消息块，不带 DeepSeek 元信息、文件 ID 或服务端工具。 */
+const toBasicMessageRequest = (provider: ProviderConfig, chat: ChatRequest) => {
+  const hy4 = thinkingMode(provider) === 'hy4'
+  const requestedLimit = chat.maxOutputTokens ?? 4096
+  const maxTokens = hy4 ? Math.min(requestedLimit, HY4_FLASH_MAX_OUTPUT) : requestedLimit
+  if (hy4 && chat.thinking && maxTokens <= 1024) {
+    throw new ApiError('protocol', { key: 'providerThinkingOutputLimit' })
+  }
+  const messages = chat.messages.flatMap<MessageParam>((message) => {
+    if (message.role === 'latest_reminder') {
+      return []
+    }
+    if (typeof message.content === 'string') {
+      return [message]
+    }
+    const content = message.content.filter((block) => block.type === 'text')
+    return content.length ? [{ role: message.role, content }] : []
+  })
+  return {
+    model: chat.model,
+    max_tokens: maxTokens,
+    messages,
+    ...(hy4
+      ? {
+          thinking: chat.thinking
+            ? { type: 'enabled', budget_tokens: Math.min(8192, maxTokens - 1) }
+            : { type: 'disabled' },
+        }
+      : {}),
+  }
+}
+
 const hasFile = (body: CreateMessageRequest) =>
   body.messages.some(
     (message) =>
@@ -57,6 +97,9 @@ const hasFile = (body: CreateMessageRequest) =>
 /** 报文一律是 JSON，必须声明类型；stream 为真时按 SSE 事件流接收 */
 const providerHeaders = (provider: ProviderConfig, stream: boolean): Record<string, string> => ({
   ...authHeaders(provider.protocol, provider.apiKey),
+  ...(provider.protocol === 'anthropic' && !hasDeepseekExtensions(provider)
+    ? { 'anthropic-version': '2023-06-01' }
+    : {}),
   'Content-Type': 'application/json',
   Accept: stream ? 'text/event-stream' : 'application/json',
 })
@@ -66,13 +109,14 @@ export const verifyProvider = async (
   provider: ProviderConfig,
   signal?: AbortSignal
 ): Promise<void> => {
-  const body = hasDeepseekExtensions(provider.protocol)
-    ? {
-        model: provider.model,
-        max_tokens: 1,
-        messages: [{ role: 'user', content: 'ping' }],
-      }
-    : toOpenAIProbe(provider.protocol, provider.model)
+  const body =
+    provider.protocol === 'anthropic'
+      ? {
+          model: provider.model,
+          max_tokens: 1,
+          messages: [{ role: 'user', content: 'ping' }],
+        }
+      : toOpenAIProbe(provider.protocol, provider.model)
   const response = await request(messageEndpoint(provider), {
     method: 'POST',
     headers: providerHeaders(provider, false),
@@ -171,15 +215,21 @@ export async function* streamMessage(
   chat: ChatRequest,
   signal: AbortSignal
 ): AsyncGenerator<MessageStreamEvent> {
-  if (hasDeepseekExtensions(provider.protocol)) {
+  if (hasDeepseekExtensions(provider)) {
     const body = toMessageRequest(chat)
     const beta: Record<string, string> = hasFile(body) ? { 'anthropic-beta': FILES_BETA } : {}
     yield* readMessageStream(await openStream(provider, body, signal, beta))
     return
   }
+  if (provider.protocol === 'anthropic') {
+    yield* readMessageStream(
+      await openStream(provider, toBasicMessageRequest(provider, chat), signal)
+    )
+    return
+  }
   yield* readOpenAIStream(
     provider.protocol,
-    await openStream(provider, toOpenAIBody(provider.protocol, chat), signal),
+    await openStream(provider, toOpenAIBody(provider, chat), signal),
     chat.model
   )
 }

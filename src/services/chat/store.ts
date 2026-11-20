@@ -1,9 +1,10 @@
-﻿import { create } from 'zustand'
+import { create } from 'zustand'
 import { createId } from '../../utils/id.js'
 import { streamMessage } from '../api/client.js'
 import { extractFileIds, getFileErrorCode, isRetryableApiError } from '../api/errors.js'
 import { ApiError } from '../api/http.js'
-import { hasDeepseekExtensions, normalizeProvider } from '../api/provider.js'
+import { hasDeepseekExtensions, normalizeProvider, thinkingMode } from '../api/provider.js'
+import { searchQuery, searchWeb } from '../api/webSearch.js'
 import { cancelUpload, describeUploadError, uploadAttachment, useUploads } from '../attachments.js'
 import { parseTokenLimit, useSettings } from '../settings.js'
 import { appendBranch, getVisibleMessages, normalizeSession, selectVersion } from './branches.js'
@@ -45,12 +46,17 @@ const FILE_RETRY_BASE_DELAY = 1000
 /** 当前模型服务的请求配置；设置里可能还留着编辑中的空值，发起请求前统一归一化 */
 const currentProvider = () => normalizeProvider(useSettings.getState().provider)
 
-/** 新回复的默认请求配置：深度思考与智能搜索按当前开关，第三方模型不启用 */
+/** 新回复只记录当前服务实际可用的开关。 */
 const defaultOptions = () => {
   const provider = currentProvider()
-  const { thinking, search } = useSettings.getState()
-  const extended = hasDeepseekExtensions(provider.protocol)
-  return { model: provider.model, thinking: extended && thinking, search: extended && search }
+  const { thinking, search, searchApiKey, standaloneSearch } = useSettings.getState()
+  return {
+    model: provider.model,
+    thinking: thinking && Boolean(thinkingMode(provider)),
+    search: hasDeepseekExtensions(provider)
+      ? search
+      : standaloneSearch && Boolean(searchApiKey.trim()),
+  }
 }
 
 /** 允许自动补标题的请求；手动重命名后取消本轮标题写入，包含主动清空标题的情况。 */
@@ -816,12 +822,16 @@ const refreshRequest = (sessionId: string, request: Request): Request => {
  * - 历史轮次（仅进入上下文的）中没有 serverId 的附件，多为导入的图片：从最新的消息往前逐张补传，
  *   失败静默跳过，该附件不进入本次请求，下次发送时再试。
  */
-const prepareFiles = async (sessionId: string, request: Request, signal: AbortSignal) => {
+const prepareFiles = async (
+  sessionId: string,
+  request: Request,
+  apiKey: string,
+  signal: AbortSignal
+) => {
   const epoch = historyEpoch
   // 服务端判定 file_id 失效时会清掉会话里的 serverId，先用最新消息替换请求快照，
   // 否则快照里仍是旧 id，补传会直接复用它。
   request = refreshRequest(sessionId, request)
-  const { apiKey } = currentProvider()
   const serverIds = new Map<string, string>()
   // 停止生成立即生效；上传本身不取消（输入框与其他消息可能共用同一任务），完成后照常写回 serverId
   const aborted = new Promise<never>((_, reject) => {
@@ -964,6 +974,10 @@ const waitForRetry = (attempt: number, signal: AbortSignal) =>
  */
 const streamReply = async (sessionId: string, initial: AssistantMessage, request: Request) => {
   const controller = new AbortController()
+  const settings = useSettings.getState()
+  const provider = normalizeProvider(settings.provider)
+  provider.model = initial.model ?? provider.model
+  const extended = hasDeepseekExtensions(provider)
   if (!getSession(sessionId)?.title) {
     titleRequests.add(controller)
   }
@@ -983,14 +997,62 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
       let preparing = true
       let receivedContent = false
       try {
-        const prepared = await prepareFiles(sessionId, request, controller.signal)
+        const prepared = extended
+          ? await prepareFiles(sessionId, request, provider.apiKey, controller.signal)
+          : request
         preparing = false
-        const settings = useSettings.getState()
-        const provider = currentProvider()
-        const extended = hasDeepseekExtensions(provider.protocol)
-        // 第三方协议不会返回标题，用提问首行兜底，避免列表一直显示「新对话」。
+        // 非 DeepSeek 服务不会返回标题，用提问首行兜底。
         if (!extended && titleRequests.delete(controller)) {
           updateTitleFromQuestion(sessionId, prepared.question)
+        }
+        let question = prepared.question
+        const query =
+          !extended && initial.search && !prepared.prefix && settings.searchApiKey.trim()
+            ? searchQuery(question.content)
+            : ''
+        if (query) {
+          const id = createId()
+          reply = {
+            ...reply,
+            prefix: false,
+            blocks: [
+              ...reply.blocks,
+              {
+                type: 'server_tool_use',
+                id,
+                name: 'deepseek_web_search',
+                kind: 'search',
+                caller: { type: 'direct' },
+                input: { action: 'search', queries: [query] },
+              },
+            ],
+          }
+          flush()
+          const { results, context } = await searchWeb(
+            query,
+            settings.searchApiKey,
+            controller.signal
+          ).catch((error: unknown) => {
+            controller.signal.throwIfAborted()
+            const status = error instanceof ApiError && error.status
+            throw new ApiError(
+              'protocol',
+              status
+                ? { key: 'standaloneSearchFailedStatus', params: { status } }
+                : { key: 'standaloneSearchFailed' }
+            )
+          })
+          reply = {
+            ...reply,
+            blocks: [
+              ...reply.blocks,
+              { type: 'web_search_tool_result', tool_use_id: id, kind: 'search', content: results },
+            ],
+          }
+          // 附录只给本次模型请求使用；本地用户原文与多轮历史不变。
+          if (context) {
+            question = { ...question, content: question.content + context }
+          }
         }
         // 附件就绪后获取本轮信息；续写沿用原回答快照，重新生成的快照独立保存。
         const latestReminder = !extended
@@ -1003,7 +1065,7 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
         persist(sessionId)
         const messages = toRequestMessages(
           prepared.history,
-          prepared.question,
+          question,
           prepared.prefix,
           initial.thinking ?? false,
           latestReminder,
@@ -1012,7 +1074,7 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
         const events = streamMessage(
           provider,
           {
-            model: initial.model ?? provider.model,
+            model: provider.model,
             system: extended ? SYSTEM_PROMPT : undefined,
             messages,
             thinking: initial.thinking ?? false,
@@ -1063,6 +1125,7 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
         }
         // 附件失效：重新补传后重发。收到过内容块（含丢弃的客户端工具）后不自动重发。
         if (
+          extended &&
           attempt < FILE_RETRY_LIMIT &&
           !receivedContent &&
           reuploadInvalidatedFiles(sessionId, request, error)

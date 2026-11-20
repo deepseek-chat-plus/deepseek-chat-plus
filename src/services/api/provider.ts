@@ -4,7 +4,7 @@
  */
 import type { MessageParam, ReasoningEffort } from './types.js'
 
-/** 与模型服务通信的协议；anthropic 为 DeepSeek 兼容的 Messages 接口 */
+/** 与模型服务通信的协议；协议格式与厂商扩展独立。 */
 export type ApiProtocol = 'anthropic' | 'openai-chat' | 'openai-responses'
 
 /** 服务地址是该协议的根地址，具体接口路径由协议决定 */
@@ -37,8 +37,25 @@ export const DEFAULT_PROVIDER: ProviderConfig = {
 /** 切换协议时的默认地址；用户改过的地址保持不动 */
 export const defaultBaseUrl = (protocol: ApiProtocol) => BASE_URLS[protocol]
 
-/** 联网搜索、附件、语音与自动标题等扩展能力只在 DeepSeek 兼容协议下提供 */
-export const hasDeepseekExtensions = (protocol: ApiProtocol) => protocol === 'anthropic'
+/** Hy4 Flash 的公开模型输出上限（TokenHub 模型列表）。 */
+export const HY4_FLASH_MAX_OUTPUT = 64 * 1024
+
+const isDeepseekEndpoint = ({ baseUrl, protocol }: ProviderConfig) => {
+  const url = baseUrl.trim().replace(/\/+$/, '') || defaultBaseUrl(protocol)
+  return url === defaultBaseUrl(protocol) || /^https:\/\/api\.deepseek\.com(?:\/|$)/i.test(url)
+}
+
+/** DeepSeek 扩展报文不是通用 Messages 协议。 */
+export const hasDeepseekExtensions = (provider: ProviderConfig) =>
+  provider.protocol === 'anthropic' && isDeepseekEndpoint(provider)
+
+/** 只有明确支持开关的模型报文才覆盖服务端默认推理行为；代理需透传模型参数。 */
+export const thinkingMode = (provider: ProviderConfig) => {
+  if (isDeepseekEndpoint(provider)) {
+    return 'deepseek'
+  }
+  return provider.model.trim() === 'hy4-flash' ? 'hy4' : undefined
+}
 
 /** 推理挡位的全部取值，三种协议一致，其余写法由服务端映射到这三档 */
 export const REASONING_EFFORTS: readonly ReasoningEffort[] = ['low', 'high', 'max']
@@ -82,9 +99,9 @@ export type ChatRequest = {
   /** 系统提示词；为空时不发送 */
   system?: string
   messages: MessageParam[]
-  /** 深度思考；仅 DeepSeek 兼容协议支持 */
+  /** 深度思考；仅有明确开关适配的服务和模型使用。 */
   thinking: boolean
-  /** 联网搜索；仅 DeepSeek 兼容协议支持 */
+  /** DeepSeek Messages 原生搜索；独立搜索在组装聊天报文前完成。 */
   search: boolean
   /** 顺带生成会话标题；仅 DeepSeek 兼容协议支持 */
   title: boolean

@@ -166,8 +166,22 @@ export const en = {
   uploadFileStatusFailed: 'Upload failed',
   uploadRetry: '{message}. Click to retry',
   chatInputPlaceholderChat: 'Enter a message',
-  providerChatToggleUnsupported:
-    'This switch requires Anthropic Messages with DeepSeek extensions. Change the protocol in Settings → Model service.',
+  providerThinkingUnsupported:
+    'Thinking cannot be toggled for this model service. You can still set reasoning effort in Advanced settings.',
+  providerThinkingOutputLimit:
+    'Hy4 Flash requires a max output above 1024 tokens with thinking on.',
+  providerSearchUnavailable:
+    'This connection has no native search integration. Add a standalone search key in Settings → Model service.',
+  providerStandaloneSearchTooltip:
+    'Search with DeepSeek before sending the references to the current model',
+  providerSearchApiKey: 'Standalone web search key',
+  providerSearchApiKeyPlaceholder: 'DeepSeek API key (optional)',
+  providerSearchApiKeyDescription:
+    'When Search is on, DeepSeek Search receives up to 128 characters from the current question, without history or attachments. Search is billed per request. Clear the key to disable it.',
+  standaloneSearchFailed:
+    'Standalone web search failed. The model was not called. Check your network or turn off Search and try again.',
+  standaloneSearchFailedStatus:
+    'Standalone web search failed (HTTP {status}). The model was not called. Check your search key and quota, or turn off Search and try again.',
   deactivatedThinkTooltip: 'Think before responding to solve reasoning problems',
   thinkingSwitch: 'DeepThink',
   deactivatedSearchTooltip: 'Search the web when necessary',

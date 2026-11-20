@@ -8,7 +8,7 @@ import {
   IconThinkOutline14,
 } from '../base/icons.js'
 import { updateSettings, useSettings } from '../../services/settings.js'
-import { hasDeepseekExtensions } from '../../services/api/provider.js'
+import { hasDeepseekExtensions, thinkingMode } from '../../services/api/provider.js'
 import { useIsMobile } from '../../app/viewport.js'
 import { sendMessage, stopReply, useChatStore } from '../../services/chat/store.js'
 import {
@@ -51,23 +51,28 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
     (state) => sessionId !== null && Object.hasOwn(state.streaming, sessionId)
   )
   const thinking = useSettings((state) => state.thinking)
-  const search = useSettings((state) => state.search)
+  const canThink = useSettings((state) => Boolean(thinkingMode(state.provider)))
+  const extended = useSettings((state) => hasDeepseekExtensions(state.provider))
+  const searchKey = extended ? 'search' : 'standaloneSearch'
+  const search = useSettings((state) => state[searchKey])
+  const searchConfigured = useSettings((state) => Boolean(state.searchApiKey.trim()))
   const importingHistory = useChatStore((state) => state.importingHistory)
   const isMobile = useIsMobile()
-  const extended = useSettings((state) => hasDeepseekExtensions(state.provider.protocol))
   const toggles = [
     {
       key: 'thinking',
       pressed: thinking,
       label: 'thinkingSwitch',
       tooltip: 'deactivatedThinkTooltip',
+      unavailable: canThink ? undefined : 'providerThinkingUnsupported',
       Icon: IconThinkOutline14,
     },
     {
-      key: 'search',
+      key: searchKey,
       pressed: search,
       label: 'search',
-      tooltip: 'deactivatedSearchTooltip',
+      tooltip: extended ? 'deactivatedSearchTooltip' : 'providerStandaloneSearchTooltip',
+      unavailable: extended || searchConfigured ? undefined : 'providerSearchUnavailable',
       Icon: IconGlobeLanguageOutline14,
     },
   ] as const
@@ -223,18 +228,18 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
       </div>
       <div className={styles.functionRow}>
         <div ref={togglesRef} className={styles.toggles}>
-          {toggles.map(({ key, pressed, label, tooltip, Icon }) => (
-            <Tooltip key={key} content={t(extended ? tooltip : 'providerChatToggleUnsupported')}>
+          {toggles.map(({ key, pressed, label, tooltip, unavailable, Icon }) => (
+            <Tooltip key={label} content={t(unavailable ?? tooltip)}>
               <button
                 type="button"
-                className={clsx(styles.toggle, extended && pressed && styles.selected)}
+                className={clsx(styles.toggle, !unavailable && pressed && styles.selected)}
                 aria-label={t(label)}
-                aria-pressed={extended && pressed}
-                aria-disabled={!extended}
+                aria-pressed={!unavailable && pressed}
+                aria-disabled={Boolean(unavailable)}
                 onClick={() => {
                   // 移动端没有 Tooltip；点按不可用的开关只说明原因，不改变偏好。
-                  if (!extended) {
-                    showToast({ key: 'providerChatToggleUnsupported' })
+                  if (unavailable) {
+                    showToast({ key: unavailable })
                     return
                   }
                   updateSettings({ [key]: !pressed })
